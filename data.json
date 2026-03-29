@@ -1,49 +1,5 @@
 {
-  "generated_at": "2025-01-01T00:00:00+00:00",
-  "total": 3,
-  "_note": "This is a placeholder. Run `python script.py` or trigger the GitHub Action to populate real articles.",
-  "articles": [
-    {
-      "id": "placeholder001",
-      "source_id": "reuters",
-      "source_label": "Reuters",
-      "source_icon": "📡",
-      "source_tag": "Global Macro",
-      "column": "pulse",
-      "title": "AllStar Terminal is ready — trigger the GitHub Action to load live news",
-      "summary": "Your feed aggregator is deployed. Navigate to Actions → 🔄 Refresh News Feed → Run workflow to fetch your first batch of articles.",
-      "body_html": "<p>Welcome to <strong>AllStar Terminal</strong>.</p><p>The dashboard is live, but <code>data.json</code> hasn't been populated with real articles yet.</p><p>To load live articles:</p><ol><li>Push this repository to GitHub.</li><li>Enable GitHub Pages (Settings → Pages → Deploy from branch: <code>main</code>, folder: <code>/</code> (root)).</li><li>Go to <strong>Actions</strong> tab → <strong>🔄 Refresh News Feed</strong> → click <strong>Run workflow</strong>.</li></ol><p>After the action completes, refresh this page. Articles will auto-refresh every 4 hours thereafter.</p>",
-      "link": "https://github.com",
-      "image": null,
-      "published": "2025-01-01T00:00:00+00:00"
-    },
-    {
-      "id": "placeholder002",
-      "source_id": "hackernews",
-      "source_label": "Hacker News",
-      "source_icon": "🔶",
-      "source_tag": "Tech Frontier",
-      "column": "facts",
-      "title": "Setup Guide: Configure your RSS sources in script.py",
-      "summary": "Open script.py and update the SOURCES list. For X/Twitter feeds, RSSHub must be self-hosted or a public instance used — check rsshub.app for availability.",
-      "body_html": "<p>The <code>SOURCES</code> list in <code>script.py</code> controls what gets fetched. Each source has:</p><ul><li><code>id</code>: unique identifier</li><li><code>label</code>: display name</li><li><code>url</code>: RSS/Atom feed URL</li><li><code>column</code>: <code>pulse</code> | <code>facts</code> | <code>geek</code></li><li><code>limit</code>: max articles per source (5–8 recommended)</li></ul><p><strong>Twitter/X feeds</strong> via RSSHub require a working RSSHub instance. The public instance at <code>rsshub.app</code> may be rate-limited. Consider self-hosting RSSHub via Docker for reliability.</p>",
-      "link": "https://news.ycombinator.com",
-      "image": null,
-      "published": "2025-01-01T00:00:00+00:00"
-    },
-    {
-      "id": "placeholder003",
-      "source_id": "v2ex",
-      "source_label": "V2EX",
-      "source_icon": "🧑‍💻",
-      "source_tag": "Dev Insights",
-      "column": "geek",
-      "title": "Reader Mode: Click any card to open the immersive reader",
-      "summary": "Every news card opens a full reader panel — no redirects, no trackers, no ads. The full article content is fetched once by Python and stored locally in data.json.",
-      "body_html": "<p>The <strong>Reader Mode</strong> is the centerpiece of AllStar Terminal.</p><p>When you click a card, the Python-fetched <code>body_html</code> is rendered in a full-screen glassmorphism overlay — sanitized, tracker-free, and formatted for maximum readability.</p><p>External links inside articles open in new tabs. You can also click <strong>Open original ↗</strong> in the modal header to visit the source website directly.</p><p>Close the reader with <kbd>Esc</kbd>, clicking the ✕ button, or clicking outside the panel.</p>",
-      "link": "https://v2ex.com",
-      "image": null,
-      "published": "2025-01-01T00:00:00+00:00"
-    }
-  ]
+  "generated_at": "2026-03-29T18:04:32.380265+00:00",
+  "total": 0,
+  "articles": []
 }
