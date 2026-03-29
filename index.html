@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AllStar Terminal — Private finance & tech news aggregator">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#04060f">
+
+  <!-- Open Graph (for self-hosted previews only) -->
+  <meta property="og:title"       content="AllStar Terminal">
+  <meta property="og:description" content="Elite finance & tech news. Zero trackers.">
+  <meta property="og:type"        content="website">
+
+  <!-- Preconnect for fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- Favicon — inline SVG data URL -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+
+  <link rel="stylesheet" href="styles.css">
+  <title>AllStar Terminal</title>
+</head>
+
+<body>
+  <!-- Ambient background layers -->
+  <div class="bg-canvas"  aria-hidden="true"></div>
+  <div class="bg-grain"   aria-hidden="true"></div>
+
+  <!-- ── Main Application ─────────────────────────────── -->
+  <div id="app">
+
+    <!-- ── Header: iOS Lock Screen Bar ─────────────────── -->
+    <header class="terminal-header" role="banner">
+
+      <!-- Brand -->
+      <div class="header-brand">
+        <div class="brand-icon" aria-hidden="true">📡</div>
+        <div>
+          <div class="brand-name">AllStar Terminal</div>
+          <div class="brand-sub">Finance &amp; Tech Intelligence</div>
+        </div>
+      </div>
+
+      <!-- Live clock -->
+      <div class="header-clock" aria-live="off" aria-atomic="true">
+        <div id="clock-time" aria-label="Current time">--:--</div>
+        <div id="clock-date"></div>
+      </div>
+
+      <!-- Status + Refresh -->
+      <div class="header-status">
+        <div class="status-badge" role="status" aria-live="polite" aria-atomic="true">
+          <span class="status-dot loading" id="status-dot"></span>
+          <span id="status-label">Loading…</span>
+        </div>
+
+        <button
+          class="btn-refresh"
+          id="btn-refresh"
+          type="button"
+          aria-label="Refresh news feed"
+          title="Refresh feed">
+          <!-- Refresh icon -->
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor"
+               stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
+               aria-hidden="true">
+            <path d="M14 8A6 6 0 1 1 9 2.05"/>
+            <path d="M9 1v4h4"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+    </header>
+
+    <!-- ── Three-Column Grid ─────────────────────────────── -->
+    <main class="terminal-grid" id="terminal-grid" role="main">
+
+      <!-- LEFT: Real-time Pulse ───────────────────────── -->
+      <section class="col-pulse" aria-labelledby="col-pulse-title">
+        <header class="column-header">
+          <div class="col-indicator" aria-hidden="true"></div>
+          <h1 class="col-title" id="col-pulse-title">Real-time Pulse</h1>
+          <span class="col-count" aria-label="Article count">–</span>
+        </header>
+        <ol class="feed-list" role="list" aria-label="Real-time Pulse feed">
+          <!-- Cards injected by scripts.js -->
+        </ol>
+      </section>
+
+      <!-- CENTER: Hard Facts ───────────────────────────── -->
+      <section class="col-facts" aria-labelledby="col-facts-title">
+        <header class="column-header">
+          <div class="col-indicator" aria-hidden="true"></div>
+          <h1 class="col-title" id="col-facts-title">Hard Facts</h1>
+          <span class="col-count" aria-label="Article count">–</span>
+        </header>
+        <ol class="feed-list" role="list" aria-label="Hard Facts feed">
+          <!-- Cards injected by scripts.js -->
+        </ol>
+      </section>
+
+      <!-- RIGHT: Geek & China ──────────────────────────── -->
+      <section class="col-geek" aria-labelledby="col-geek-title">
+        <header class="column-header">
+          <div class="col-indicator" aria-hidden="true"></div>
+          <h1 class="col-title" id="col-geek-title">Geek &amp; China</h1>
+          <span class="col-count" aria-label="Article count">–</span>
+        </header>
+        <ol class="feed-list" role="list" aria-label="Geek and China feed">
+          <!-- Cards injected by scripts.js -->
+        </ol>
+      </section>
+
+    </main>
+
+    <!-- ── Footer ────────────────────────────────────────── -->
+    <footer class="terminal-footer" role="contentinfo">
+      <span>AllStar Terminal &nbsp;·&nbsp; 100% static &nbsp;·&nbsp; Zero trackers &nbsp;·&nbsp; GitHub Pages</span>
+    </footer>
+
+  </div><!-- /#app -->
+
+  <!-- ── Reader Mode Modal ─────────────────────────────── -->
+  <!--
+    The modal is appended outside #app so that
+    backdrop-filter on the overlay doesn't clip.
+  -->
+  <div
+    id="modal-backdrop"
+    class="modal-backdrop"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modal-title"
+    aria-describedby="modal-body"
+  >
+    <article id="modal-panel" class="modal-panel">
+
+      <header class="modal-header">
+        <div class="modal-source-info">
+          <!-- Source row -->
+          <div class="modal-source-row">
+            <span id="modal-source-icon" class="modal-source-icon" aria-hidden="true">📰</span>
+            <span id="modal-source-name" class="modal-source-name">Source</span>
+            <span id="modal-tag"         class="modal-tag">Tag</span>
+          </div>
+          <!-- Title -->
+          <h2 id="modal-title" class="modal-title">Article Title</h2>
+          <!-- Meta: date + external link -->
+          <div class="modal-meta">
+            <time id="modal-date"></time>
+            <a
+              id="modal-link"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open original article in new tab">
+              <!-- External link icon -->
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor"
+                   stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
+                   width="11" height="11" aria-hidden="true">
+                <path d="M5 2H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V7"/>
+                <path d="M8 1h3v3"/>
+                <path d="M11 1 5.5 6.5"/>
+              </svg>
+              Open original
+            </a>
+          </div>
+        </div>
+
+        <!-- Close button -->
+        <button
+          id="modal-close"
+          class="modal-close"
+          type="button"
+          aria-label="Close reader">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M1 1l12 12M13 1 1 13"/>
+          </svg>
+        </button>
+      </header>
+
+      <!-- Scrollable reader pane -->
+      <div id="modal-body" class="modal-body" tabindex="0">
+        <!-- Reader content injected by scripts.js -->
+      </div>
+
+    </article>
+  </div><!-- /#modal-backdrop -->
+
+  <script src="scripts.js"></script>
+</body>
+</html>
