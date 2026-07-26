@@ -248,6 +248,9 @@ def main(target_dbs: list[str] | None = None) -> None:
             url = src.get("url", "")
             if not url or url == "FILL_ME":
                 continue
+            if src.get("no_store"):
+                # e.g. TLDR: fetched live in render_daily, never persisted (time-sensitive content)
+                continue
             display_mode = src.get("display_mode") or group_mode or "title_excerpt"
             tasks.append(dict(url=url, db=db, feed_key=feed_key,
                               source_name=src["name"], display_mode=display_mode))

@@ -204,15 +204,27 @@ def yt_exists(video_url: str) -> bool:
 def insert_yt(
     *, video_url: str, video_id: str, channel_id: str, channel_name: str,
     feed_key: str, title: str, subtitle: str | None, published_at: str,
+    mode: str = "mixed", media_url: str | None = None,
 ) -> None:
     with _conn("youtube") as c:
         c.execute(
             """INSERT OR IGNORE INTO yt_items
                (id, video_url, video_id, channel_id, channel_name, feed_key,
-                title, subtitle, published_at, ingested_at, has_subtitle)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                title, subtitle, published_at, ingested_at, has_subtitle, mode, media_url)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (item_hash(video_url), video_url, video_id, channel_id, channel_name,
-             feed_key, title, subtitle, published_at, now_iso(), 1 if subtitle else 0),
+             feed_key, title, subtitle, published_at, now_iso(),
+             1 if subtitle else 0, mode, media_url),
+        )
+
+
+def set_yt_media_url(video_url: str, media_url: str) -> None:
+    """Update media_url after a low-res video/audio file has been uploaded
+    as a GitHub Release asset (called from the workflow after upload)."""
+    with _conn("youtube") as c:
+        c.execute(
+            "UPDATE yt_items SET media_url=? WHERE id=?",
+            (media_url, item_hash(video_url)),
         )
 
 

@@ -44,31 +44,116 @@ def excerpt(text: str, chars: int = 200) -> str:
     return flat if len(flat) <= chars else flat[:chars].rsplit(" ", 1)[0] + "…"
 
 
-def md_to_html(text: str) -> str:
-    """Minimal markdown → HTML: paragraphs, bold, inline links, bullet lists."""
-    if not text:
-        return ""
-    text = html.escape(text)
+def _inline_md(text: str) -> str:
+    """Inline markdown: bold, italic, inline code, links. Input is already html-escaped."""
     text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+    text = re.sub(r"(?<!\*)\*([^*\n]+)\*(?!\*)", r"<em>\1</em>", text)
+    text = re.sub(r"`([^`]+)`", r"<code style='background:#f0f0f6;padding:1px 4px;"
+                                  r"border-radius:3px;font-size:0.9em'>\1</code>", text)
     text = re.sub(
         r"\[([^\]]+)\]\((https?://[^\)]+)\)",
         r'<a href="\2" style="color:' + ACCENT + r'">\1</a>',
         text,
     )
-    lines = text.split("\n")
-    out, in_ul = [], False
+    return text
+
+
+# Sponsor-detection: TLDR (and similar newsletters) mark sponsored blurbs with
+# a "(Sponsor)" suffix on the heading. We drop the whole heading+paragraph(s)
+# that follow, up to the next heading, rather than matching specific wording,
+# so this keeps working even if the sponsor copy changes.
+_SPONSOR_HEADING_RE = re.compile(r"^(#{1,6})\s*.*\(sponsor\)\s*$", re.I)
+
+# Trailing subscribe/CTA boilerplate ("Get the most interesting stories...",
+# "Join N readers...", "one daily email", etc). Matched loosely by shape
+# (short promo lines mentioning "readers"/"daily email"/"subscribe"), not by
+# hardcoding exact copy, so it survives wording tweaks.
+_CTA_LINE_RE = re.compile(
+    r"(join\s+[\d,]+\s+readers|one\s+daily\s+email|delivered in a free daily email|"
+    r"subscribe (for|to) free|sign up for free)",
+    re.I,
+)
+
+
+def _is_heading(line: str) -> re.Match | None:
+    return re.match(r"^(#{1,6})\s+(.*)$", line)
+
+
+def strip_sponsor_and_cta(md_text: str) -> str:
+    """Remove sponsor sections (heading contains '(Sponsor)') and trailing
+    subscribe/CTA boilerplate lines from a markdown blob."""
+    if not md_text:
+        return md_text
+
+    lines = md_text.split("\n")
+    out: list[str] = []
+    skipping_sponsor = False
+
     for line in lines:
+        heading = _is_heading(line)
+        if heading:
+            if _SPONSOR_HEADING_RE.match(line):
+                skipping_sponsor = True
+                continue
+            skipping_sponsor = False  # a new, non-sponsor heading ends the skip
+        if skipping_sponsor:
+            continue
+        if _CTA_LINE_RE.search(line):
+            continue
+        out.append(line)
+
+    # Collapse resulting multiple blank lines
+    text = "\n".join(out)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    return text
+
+
+def md_to_html(text: str, *, strip_sponsors: bool = False) -> str:
+    """Markdown → HTML: headings, paragraphs, bold/italic/code, links, bullet lists."""
+    if not text:
+        return ""
+    if strip_sponsors:
+        text = strip_sponsor_and_cta(text)
+
+    lines = text.split("\n")
+    out: list[str] = []
+    in_ul = False
+
+    heading_sizes = {1: 20, 2: 18, 3: 16, 4: 15, 5: 14, 6: 13}
+
+    for raw_line in lines:
+        line = raw_line.rstrip()
+        heading = _is_heading(line)
+
+        if heading:
+            if in_ul:
+                out.append("</ul>")
+                in_ul = False
+            level = len(heading.group(1))
+            content = _inline_md(html.escape(heading.group(2).strip()))
+            size = heading_sizes.get(level, 13)
+            out.append(
+                f"<p style='margin:16px 0 8px;font-size:{size}px;font-weight:700;"
+                f"line-height:1.4;color:{TEXT}'>{content}</p>"
+            )
+            continue
+
         if re.match(r"^[-*] ", line):
             if not in_ul:
                 out.append("<ul style='margin:8px 0 8px 18px;padding:0'>")
                 in_ul = True
-            out.append(f"<li style='margin:3px 0;line-height:1.65'>{line[2:]}</li>")
-        else:
-            if in_ul:
-                out.append("</ul>")
-                in_ul = False
-            if line.strip():
-                out.append(f"<p style='margin:0 0 10px;line-height:1.75'>{line}</p>")
+            item = _inline_md(html.escape(line[2:]))
+            out.append(f"<li style='margin:3px 0;line-height:1.65'>{item}</li>")
+            continue
+
+        if in_ul:
+            out.append("</ul>")
+            in_ul = False
+
+        if line.strip():
+            para = _inline_md(html.escape(line))
+            out.append(f"<p style='margin:0 0 10px;line-height:1.75'>{para}</p>")
+
     if in_ul:
         out.append("</ul>")
     return "\n".join(out)
@@ -100,9 +185,26 @@ def email_shell(title: str, subtitle: str, body: str, issue_label: str = "") -> 
   <main>{body}</main>
 
   <footer style="margin-top:48px;padding-top:20px;border-top:1px solid {BORDER}">
-    <p style="margin:0;font-size:11px;color:{MUTED};line-height:1.6">
+    <p style="margin:0 0 10px;font-size:11px;color:{MUTED};line-height:1.6">
       Generated by <strong style="color:{TEXT}">Dewsletter</strong>
       &middot; GitHub Actions &middot; RSS aggregator
+    </p>
+    <p style="margin:0;font-size:11px;color:{MUTED};line-height:1.6">
+      <a href="https://github.com/asong56" style="color:{MUTED};text-decoration:none;
+         display:inline-flex;align-items:center;vertical-align:middle">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"
+             style="vertical-align:middle;margin-right:4px" aria-hidden="true">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
+                   0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13
+                   -.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07
+                   -1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12
+                   0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08
+                   2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48
+                   0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+        </svg>github.com/asong56</a>
+      &middot;
+      <a href="https://github.com/asong56/dewsletter" style="color:{MUTED};text-decoration:none"
+      >github.com/asong56/dewsletter</a>
     </p>
   </footer>
 
@@ -124,6 +226,64 @@ def section_heading(label: str, count: int | None = None) -> str:
     )
 
 
+# ── Full-article markdown export (for zip attachments) ───────────────────────
+# Raw sqlite attachments require `duckdb --ui` to read and are not pleasant.
+# Any section rendered with display_mode == "full" gets its full text exported
+# as one .md file per article, zipped as an email attachment instead — plain
+# text opens anywhere, isn't flagged as suspicious by mail clients, and
+# compresses far better than an HTML/db attachment would.
+
+import zipfile as _zipfile
+import shutil as _shutil
+from pathlib import Path as _Path
+
+
+def _slugify(text: str, max_len: int = 60) -> str:
+    text = re.sub(r"[^\w\s-]", "", text or "", flags=re.UNICODE).strip().lower()
+    text = re.sub(r"[\s_-]+", "-", text)
+    return text[:max_len].strip("-") or "untitled"
+
+
+def export_full_articles_zip(rows, zip_path, *, title_key="title",
+                              source_key="source_name", url_key="source_id",
+                              content_key="content", date_key="created_at") -> int:
+    """Write one .md file per row to a temp dir and zip it to zip_path.
+    Only call this with rows whose display_mode == 'full' already filtered.
+    Returns the number of files written."""
+    zip_path = _Path(zip_path)
+    tmp_dir = zip_path.with_suffix("")  # e.g. out_daily.zip -> out_daily/
+    if tmp_dir.exists():
+        _shutil.rmtree(tmp_dir)
+    tmp_dir.mkdir(parents=True)
+
+    seen: dict[str, int] = {}
+    paths: list[_Path] = []
+    for row in rows:
+        title = row[title_key] or "(untitled)"
+        slug  = _slugify(title)
+        n     = seen.get(slug, 0)
+        seen[slug] = n + 1
+        fname = f"{slug}.md" if n == 0 else f"{slug}-{n}.md"
+
+        header = f"# {title}\n\n*{row[source_key]}"
+        date = (row[date_key] or "")[:10] if date_key in row.keys() else ""
+        if date:
+            header += f" · {date}"
+        header += f"*\n\n{row[url_key]}\n\n---\n\n"
+
+        path = tmp_dir / fname
+        path.write_text(header + (row[content_key] or "") + "\n", encoding="utf-8")
+        paths.append(path)
+
+    if zip_path.exists():
+        zip_path.unlink()
+    with _zipfile.ZipFile(zip_path, "w", _zipfile.ZIP_DEFLATED) as zf:
+        for p in paths:
+            zf.write(p, arcname=p.name)
+    _shutil.rmtree(tmp_dir)
+    return len(paths)
+
+
 # ── Block renderers ───────────────────────────────────────────────────────────
 
 def block_full(title: str, source_name: str, url: str,
@@ -140,7 +300,7 @@ def block_full(title: str, source_name: str, url: str,
     <a href="{html.escape(url)}" style="color:inherit;text-decoration:none"
     >{html.escape(title or '(untitled)')}</a>
   </h2>
-  <div style="font-size:14px;line-height:1.75;color:{TEXT}">{md_to_html(content)}</div>
+  <div style="font-size:14px;line-height:1.75;color:{TEXT}">{md_to_html(content, strip_sponsors=True)}</div>
 </article>"""
 
 

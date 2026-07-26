@@ -109,7 +109,9 @@ SCHEMAS: dict[str, list[str]] = {
             subtitle     TEXT,
             published_at TEXT,
             ingested_at  TEXT NOT NULL DEFAULT '',
-            has_subtitle INTEGER DEFAULT 0
+            has_subtitle INTEGER DEFAULT 0,
+            mode         TEXT DEFAULT 'mixed',
+            media_url    TEXT
         )""",
         """CREATE TABLE IF NOT EXISTS push_log (
             item_id    TEXT NOT NULL,
@@ -175,6 +177,10 @@ def _migrate(conn: sqlite3.Connection, name: str) -> None:
         existing = {r[1] for r in conn.execute("PRAGMA table_info(yt_items)")}
         if "has_subtitle" not in existing:
             conn.execute("ALTER TABLE yt_items ADD COLUMN has_subtitle INTEGER DEFAULT 0")
+        if "mode" not in existing:
+            conn.execute("ALTER TABLE yt_items ADD COLUMN mode TEXT DEFAULT 'mixed'")
+        if "media_url" not in existing:
+            conn.execute("ALTER TABLE yt_items ADD COLUMN media_url TEXT")
         conn.commit()
 
 

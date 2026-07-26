@@ -34,14 +34,35 @@ jobs:
       - name: Init database
         run: python scripts/db_init.py youtube
 
-      - name: Ingest YouTube subtitles (youtube.db)
+      - name: Ingest YouTube (subtitles + low-res video/audio per channel mode)
         run: python scripts/ingest_youtube.py
         env:
           YT_WORKERS: "3"
           LOOKBACK_DAYS: "8"
 
-      - name: Render HTML
+      - name: Upload low-res video/audio to GitHub Release
+        if: always()
+        run: |
+          if [ -d media_out ] && [ "$(find media_out -type f ! -name '*.tsv' | wc -l)" -gt 0 ]; then
+            python scripts/upload_yt_release.py \
+              --repo "${{ github.repository }}" \
+              --tag "yt-$(date -u +'%Y-%m-%d')"
+          else
+            echo "no media to upload, skipping"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Render HTML (also writes yt_subtitles.zip)
         run: python scripts/render_yt.py
+
+      - name: Ensure zip attachment exists
+        run: |
+          if [ ! -f out_yt.zip ]; then
+            echo "no subtitles this week" > _placeholder.txt
+            zip out_yt.zip _placeholder.txt
+            rm _placeholder.txt
+          fi
 
       - name: Read subject
         id: subject
@@ -59,7 +80,11 @@ jobs:
           from: Dewsletter <${{ secrets.SMTP_USER }}>
           subject: ${{ steps.subject.outputs.value }}
           html_body: file://out_yt.html
-          attachments: database/youtube.db
+          attachments: out_yt.zip
+
+      - name: Clean up local media files
+        if: always()
+        run: rm -rf media_out
 
       - name: Commit database (LFS)
         continue-on-error: true

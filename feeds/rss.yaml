@@ -14,9 +14,11 @@ feeds:
       - name: TLDR Tech
         url: https://tldr.tech/api/rss/tech
         display_mode: full
+        no_store: true
       - name: TLDR Dev
         url: https://tldr.tech/api/rss/dev
         display_mode: full
+        no_store: true
       - name: Ruanyf Weekly
         url: https://feeds.feedburner.com/ruanyifeng
         display_mode: title_excerpt
@@ -41,9 +43,11 @@ feeds:
       - name: Billboard Hot 100
         url: FILL_ME
         display_mode: chart_only
+        no_store: true
       - name: Bandcamp Daily
         url: https://daily.bandcamp.com/feed
         display_mode: title_excerpt
+        no_store: true
 
   # ── Digest · Podcast ────────────────────────────────────────────────────────
   - key: rss.digest.podcast
@@ -198,9 +202,9 @@ feeds:
       - name: sspai
         url: https://sspai.com/feed
         display_mode: title_excerpt
-      - name: Innei
-        url: https://innei.in/feed
-        display_mode: full
+      - name: ifanr
+        url: https://www.ifanr.com/feed
+        display_mode: title_excerpt
       - name: Bubbles Town
         url: https://bubbles.town/weekly/feed
         display_mode: full

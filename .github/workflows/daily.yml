@@ -38,6 +38,14 @@ jobs:
       - name: Render daily HTML
         run: python scripts/render_daily.py
 
+      - name: Ensure zip attachment exists
+        run: |
+          if [ ! -f out_daily.zip ]; then
+            echo "no full-text articles today" > _placeholder.txt
+            zip out_daily.zip _placeholder.txt
+            rm _placeholder.txt
+          fi
+
       - name: Read subject
         id: subject
         run: echo "value=$(cat out_daily_subject.txt)" >> "$GITHUB_OUTPUT"
@@ -54,7 +62,7 @@ jobs:
           from: Dewsletter <${{ secrets.SMTP_USER }}>
           subject: ${{ steps.subject.outputs.value }}
           html_body: file://out_daily.html
-          attachments: database/core.db,database/hn.db
+          attachments: out_daily.zip
 
       - name: Commit databases (LFS)
         continue-on-error: true

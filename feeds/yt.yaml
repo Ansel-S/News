@@ -2,6 +2,20 @@
 # YouTube channels
 # channel_id: fill from youtube.com/channel/<id> or youtube.com/@handle page
 # All entries go to youtube.db, issue: yt_weekly
+#
+# mode: how much of this channel's content is actually carried by subtitles.
+#   subtitle — subtitles alone are high-signal (talking-head/commentary channels
+#              like 马司库, VEXILLA). Keep current behavior: download + clean subs only.
+#   video    — subtitles are useless (ASMR, football/sports tutorials, music).
+#              Subtitles are skipped entirely; render_yt should offer a
+#              low-res (720p or lower, vp09/av01) video via GitHub Release instead.
+#   mixed    — subtitles help but don't tell the whole story (most channels).
+#              Default when `mode` is omitted. Subtitles are downloaded as today;
+#              a low-res video release can optionally be added later per-video.
+#   audio    — video track adds nothing; only the audio matters (podcasts,
+#              interviews, music-only channels without visuals).
+# `mode: FILL_ME` marks a channel not yet classified — ingest_youtube falls back
+# to `mixed` (today's behavior) until it is filled in.
 
 feeds:
 
@@ -55,8 +69,10 @@ feeds:
     sources:
       - name: 美投讲美股
         channel_id: UCBUH38E0ngqvmTqdchWunwQ
+        mode: audio
       - name: 硅谷101
         channel_id: UCKV2yWPB3wn0RTZh3cTD8YA
+        mode: audio
 
   - key: yt.digest.history
     db: youtube
@@ -73,8 +89,13 @@ feeds:
         channel_id: UC9xRcqG8V6yNi6Hum92EoGg
       - name: Takuya
         channel_id: FILL_ME
+      - name: SportsHD
+        channel_id: UCU6JLYuerEUb7VrDd4zLihg
+        mode: video
+      - name: Pythagoras in Boots
+        channel_id: UCorFnMmI4eXS1ftlY4PpTsw
 
-  - key: yt.dive.science
+  - key: yt.dive.study
     db: youtube
     issue: yt_weekly
     sources:
@@ -86,6 +107,8 @@ feeds:
         channel_id: UClLEMac0ZjZCsVOTiaBtJBg
       - name: 何同学
         channel_id: UCP5Kd0smdWe9H_bDH-73c6Q
+      - name: Frontline PBS
+        channel_id: UC3ScyryU9Oy9Wse3a8OAmYQ
 
   - key: yt.dive.politics
     db: youtube
@@ -93,8 +116,10 @@ feeds:
     sources:
       - name: VEXILLA 潮時務所
         channel_id: UCpC2D7JdcB8nlfzhX08i7fg
+        mode: subtitle
       - name: 马司库
         channel_id: UC3411UsjUC2t-Xfr1gwIhzg
+        mode: subtitle
 
   - key: yt.zen
     db: youtube
@@ -108,18 +133,20 @@ feeds:
         channel_id: UCM3O_udrQjPU72oRNVipYBQ
       - name: Jason-老湿
         channel_id: UC5BC7UNoExVELezGVlV_bYg
+        mode: audio
       - name: Ellen 李
         channel_id: UCsBYq6iSNLIpwr5X2sPmuHQ
       - name: Funny Lulu 2.0
         channel_id: UC2pXkPVfSKPFViEIvsGNuMA
       - name: 泰哥是只小暖猫
         channel_id: UC820rtkN9apWeN5t9GKz8lw
+        mode: video
       - name: 黄阿玛的后宫生活
         channel_id: UCw2W7GIqJNB-UMUxncnMuiw
+        mode: video
       - name: 一只笨鼠
         channel_id: UCUnvudhyaywzo8gygpURLLg
-      - name: SportsHD
-        channel_id: UCU6JLYuerEUb7VrDd4zLihg
+        mode: video
       - name: 人性黑書
         channel_id: UC-8qeOjUEf4F9tJO5QGviDg
 
@@ -136,14 +163,17 @@ feeds:
       - name: 凯哥带你脱单
         channel_id: UCjD4XGxZRvCusBrYUUQLeEw
 
+
   - key: yt.zen.music
     db: youtube
     issue: yt_weekly
     sources:
       - name: 悦耳音乐酱
         channel_id: UCqWNOHjgfL8ADEdXGznzwUw
+        mode: audio
       - name: 妙音人
         channel_id: UCIgUbcReolYR_R4-p54iomg
+        mode: audio
 
   - key: yt.zen.asmr
     db: youtube

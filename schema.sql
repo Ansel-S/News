@@ -107,7 +107,10 @@ CREATE TABLE IF NOT EXISTS yt_items (
     subtitle     TEXT,               -- cleaned subtitle text
     published_at TEXT,
     ingested_at  TEXT NOT NULL,
-    has_subtitle INTEGER DEFAULT 0   -- 0 | 1
+    has_subtitle INTEGER DEFAULT 0,  -- 0 | 1
+    mode         TEXT DEFAULT 'mixed',  -- subtitle | video | mixed | audio
+    media_url    TEXT              -- GitHub Release asset URL, if a low-res
+                                    -- video/audio file was uploaded for this video
 );
 
 CREATE TABLE IF NOT EXISTS push_log (
