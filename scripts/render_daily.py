@@ -105,7 +105,15 @@ def render_rss_sections(rows) -> tuple[str, int, int, list]:
 
     for fk in sorted(groups, key=order):
         grp = groups[fk]
-        parts.append(section_heading(grp[0]["source_name"], len(grp)))
+        distinct_sources = {r["source_name"] for r in grp}
+        # A feed_key with one source behind it (the common case) keeps using
+        # that source's display name as the heading, same as before. A
+        # feed_key with several distinct sources (e.g. RAND split across
+        # separate Economy/Policy/Security RSS feeds under one feed_key) uses
+        # the feed_key itself as a neutral group heading instead of silently
+        # picking one source's name to represent the whole group.
+        heading = grp[0]["source_name"] if len(distinct_sources) == 1 else fk
+        parts.append(section_heading(heading, len(grp)))
         for i, row in enumerate(grp):
             mode = row["display_mode"]
             kw   = dict(title=row["title"] or "", source_name=row["source_name"],

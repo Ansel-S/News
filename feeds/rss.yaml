@@ -3,6 +3,20 @@
 # display_mode: full | title_excerpt | title_only | repo_card | chart_only
 # db: core | dive | zen | paper | report
 # issue: daily | dive_weekly | zen_weekly | paper_weekly | report_monthly
+#
+# One organization, multiple RSS feeds you want all of (e.g. RAND publishes
+# separate feeds for Economy / Policy / Security): add one `source` entry per
+# feed, not one entry with multiple urls. Give each a distinguishing name
+# ("RAND - Economy", "RAND - Policy", ...) so they're identifiable in the
+# email and in the db. This also lets each feed have its own display_mode —
+# e.g. a monthly-report feed as `full` and a news/press-release feed as
+# `title_excerpt` — which a single shared-name entry couldn't express.
+#   - name: RAND - Commentary
+#     url: https://www.rand.org/pubs/commentary.xml
+#     display_mode: title_excerpt
+#   - name: RAND - Article
+#     url: https://www.rand.org/pubs/articles.xml
+#     display_mode: full
 
 feeds:
 
@@ -21,7 +35,7 @@ feeds:
         no_store: true
       - name: Ruanyf Weekly
         url: https://feeds.feedburner.com/ruanyifeng
-        display_mode: title_excerpt
+        display_mode: full
 
   # ── Daily · GitHub ──────────────────────────────────────────────────────────
   - key: rss.daily.github
@@ -33,7 +47,7 @@ feeds:
         display_mode: repo_card
       - name: HelloGitHub
         url: https://hellogithub.com/rss
-        display_mode: repo_card
+        display_mode: full
 
   # ── Daily · Music ───────────────────────────────────────────────────────────
   - key: rss.daily.music
@@ -98,19 +112,19 @@ feeds:
     sources:
       - name: Noahpinion
         url: https://www.noahpinion.blog/feed
-        display_mode: full
+        display_mode: title_excerpt
       - name: One Useful Thing
         url: https://www.oneusefulthing.org/feed
-        display_mode: full
+        display_mode: title_excerpt
       - name: Wait But Why
         url: https://waitbutwhy.com/feed
-        display_mode: full
+        display_mode: title_excerpt
       - name: The Marginalian
         url: https://www.themarginalian.org/feed/
-        display_mode: full
+        display_mode: title_excerpt
       - name: Lenny's Newsletter
         url: https://www.lennysnewsletter.com/feed
-        display_mode: full
+        display_mode: title_excerpt
 
   # ── Research · CS → paper.db ────────────────────────────────────────────────
   - key: rss.research.cs
@@ -165,8 +179,11 @@ feeds:
     db: paper
     issue: paper_weekly
     sources:
-      - name: BIS
-        url: https://www.bis.org/doclist/bis_fsi_publs.rss
+      - name: BIS Statistics
+        url: https://www.bis.org/doclist/all_statistics.rss
+        display_mode: title_only
+      - name: BIS Papers
+        url: https://www.bis.org/doclist/reshub_papers.rss
         display_mode: title_only
 
   # ── Report → report.db (PDFs stored as binary blobs) ───────────────────────
@@ -176,7 +193,11 @@ feeds:
     display_mode: title_only
     sources:
       - name: RAND
-        url: FILL_ME
+        url: https://www.rand.org/pubs/new.xml
+      - name: RAND Commentary
+        url: https://www.rand.org/pubs/commentary.xml
+      - name: RAND Articles
+        url: https://www.rand.org/pubs/articles.xml
       - name: Brookings
         url: FILL_ME
       - name: AI Index
@@ -190,7 +211,7 @@ feeds:
       - name: Carnegie Endowment for International Peace
         url: FILL_ME
       - name: Peterson Institute
-        url: FILL_ME
+        url: https://www.piie.com/rss/update.xml
       - name: Arxiv CS.AI
         url: https://rss.arxiv.org/rss/cs.AI
 

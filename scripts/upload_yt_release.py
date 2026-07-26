@@ -62,8 +62,15 @@ def upload_file(repo: str, tag: str, path: Path) -> str | None:
     return f"https://github.com/{repo}/releases/download/{tag}/{path.name}"
 
 
-def video_id_from_filename(path: Path) -> str:
-    return path.stem  # files are named "<video_id>.<ext>"
+def video_id_and_kind_from_filename(path: Path) -> tuple[str, str]:
+    """Files are named '<video_id>.<kind>.<ext>', e.g. 'abc123.video.webm' or
+    'abc123.audio.m4a'. Falls back to kind='video' for older-style filenames
+    that don't have the kind segment."""
+    stem = path.stem  # strips only the last extension, e.g. "abc123.video"
+    parts = stem.rsplit(".", 1)
+    if len(parts) == 2 and parts[1] in ("video", "audio"):
+        return parts[0], parts[1]
+    return stem, "video"
 
 
 def main() -> None:
@@ -93,8 +100,8 @@ def main() -> None:
         if map_path.exists():
             for line in map_path.read_text(encoding="utf-8").splitlines():
                 if "\t" in line:
-                    vid, url = line.split("\t", 1)
-                    id_to_url[vid.strip()] = url.strip()
+                    fname, url = line.split("\t", 1)
+                    id_to_url[fname.strip()] = url.strip()
 
     ensure_release(args.repo, args.tag)
 
@@ -105,11 +112,11 @@ def main() -> None:
             failed += 1
             continue
         uploaded += 1
-        vid = video_id_from_filename(f)
-        video_url = id_to_url.get(vid)
+        vid, kind = video_id_and_kind_from_filename(f)
+        video_url = id_to_url.get(f.name) or id_to_url.get(vid)
         if video_url:
-            set_yt_media_url(video_url, url)
-        print(f"  [ok] {f.name} -> {url}")
+            set_yt_media_url(video_url, kind, url)
+        print(f"  [ok] {f.name} ({kind}) -> {url}")
 
     print(f"upload_yt_release: {uploaded} uploaded, {failed} failed")
     if failed:

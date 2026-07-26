@@ -5,6 +5,7 @@ youtube.db attached as file containing full subtitles.
 """
 from __future__ import annotations
 import html as _html
+import json
 from collections import defaultdict
 from pathlib import Path
 from db_utils import get_unpushed_yt, mark_pushed_yt, run_id as new_run_id
@@ -39,7 +40,14 @@ def video_row(row) -> str:
     ch       = _html.escape(row["channel_name"])
     pub      = (row["published_at"] or "")[:10]
     has_sub  = bool(row["has_subtitle"])
-    media_url = row["media_url"] if "media_url" in row.keys() else None
+    media_url_raw = row["media_url"] if "media_url" in row.keys() else None
+
+    media_links: dict[str, str] = {}
+    if media_url_raw:
+        try:
+            media_links = json.loads(media_url_raw)
+        except (json.JSONDecodeError, TypeError):
+            media_links = {}
 
     badges = []
     if has_sub:
@@ -47,11 +55,17 @@ def video_row(row) -> str:
             f'<span style="font-size:10px;background:#dcfce7;color:#166534;'
             f'padding:1px 5px;border-radius:3px;font-family:{MONO}">sub</span>'
         )
-    if media_url:
+    if media_links.get("video"):
         badges.append(
-            f'<a href="{_html.escape(media_url)}" style="font-size:10px;background:#dbeafe;'
-            f'color:#1e40af;padding:1px 5px;border-radius:3px;font-family:{MONO};'
-            f'text-decoration:none">720p ↓</a>'
+            f'<a href="{_html.escape(media_links["video"])}" style="font-size:10px;'
+            f'background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:3px;'
+            f'font-family:{MONO};text-decoration:none">720p ↓</a>'
+        )
+    if media_links.get("audio"):
+        badges.append(
+            f'<a href="{_html.escape(media_links["audio"])}" style="font-size:10px;'
+            f'background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;'
+            f'font-family:{MONO};text-decoration:none">audio ↓</a>'
         )
     badge_html = "".join(f" {b}" for b in badges)
 

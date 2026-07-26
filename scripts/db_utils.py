@@ -3,6 +3,7 @@ db_utils.py — Shared database read/write utilities for all databases
 """
 from __future__ import annotations
 import hashlib
+import json
 import re
 import sqlite3
 from datetime import datetime, UTC
@@ -218,13 +219,25 @@ def insert_yt(
         )
 
 
-def set_yt_media_url(video_url: str, media_url: str) -> None:
-    """Update media_url after a low-res video/audio file has been uploaded
-    as a GitHub Release asset (called from the workflow after upload)."""
+def set_yt_media_url(video_url: str, kind: str, media_url: str) -> None:
+    """Record a download URL for one kind of media ('video' or 'audio') after
+    it's been uploaded as a GitHub Release asset. A single video can have both
+    a video and an audio release, so media_url stores a JSON object like
+    {"video": "https://...", "audio": "https://..."} rather than one string."""
     with _conn("youtube") as c:
+        row = c.execute(
+            "SELECT media_url FROM yt_items WHERE id=?", (item_hash(video_url),)
+        ).fetchone()
+        existing = {}
+        if row and row["media_url"]:
+            try:
+                existing = json.loads(row["media_url"])
+            except (json.JSONDecodeError, TypeError):
+                existing = {}
+        existing[kind] = media_url
         c.execute(
             "UPDATE yt_items SET media_url=? WHERE id=?",
-            (media_url, item_hash(video_url)),
+            (json.dumps(existing), item_hash(video_url)),
         )
 
 

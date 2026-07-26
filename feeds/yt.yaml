@@ -25,10 +25,13 @@ feeds:
     sources:
       - name: 零度解说
         channel_id: UCvijahEyGtvMpmMHBu4FS2w
+        mode: [audio, video]
       - name: 极客湾
         channel_id: UCeUJO1H3TEXu2syfAAPjYKQ
+        mode: [audio, video]
       - name: IT咖啡馆
         channel_id: UCXLV-KfDQAFUJ_as9H1Lfbw
+        mode: [mixed]
       - name: 新知
         channel_id: UChoR3_5ZTj3TS12ub1GHw3Q
       - name: 程序媛小白
@@ -53,6 +56,14 @@ feeds:
         channel_id: UC0k8npj7VdHzN2L_-JSaPyA
       - name: ami.moment
         channel_id: UCGs_cktFPCgN8ggJJVon84g
+      - name: 疯狂赚钱实验室
+        channel_id: UC9vwELYqSedcjU50D7IiYkw
+      - name: 艾特科技
+        channel_id: UCJ7O8Cf9lJnBxnoc2pl2_uA
+      - name: 墙后立方体
+        channel_id: UCUXv8OhSFFQRJGg_dO55XrQ
+      - name: 边境中文说
+        channel_id: UCykdQvoM9Fw2nO-58iEsvrw
 
   - key: yt.daily.ios
     db: youtube
@@ -73,6 +84,10 @@ feeds:
       - name: 硅谷101
         channel_id: UCKV2yWPB3wn0RTZh3cTD8YA
         mode: audio
+      - name: 老周横眉
+        channel_id: UCFDMMIHbtRdrVhHlGXVzApA
+      - name: 北美王路飞
+        channel_id: UCmajVvuOjspOA9WtJGquDHA
 
   - key: yt.digest.history
     db: youtube
@@ -80,6 +95,8 @@ feeds:
     sources:
       - name: 掌柜说历史
         channel_id: UCmaQHKSlg9QxMgzifrGFbCg
+      - name: 李天豪
+        channel_id: UCOrcp--cu4Egwdc07X44btA
 
   - key: yt.digest.sport
     db: youtube
@@ -95,6 +112,13 @@ feeds:
       - name: Pythagoras in Boots
         channel_id: UCorFnMmI4eXS1ftlY4PpTsw
 
+  - key: yt.dive.ai
+    db: youtube
+    issue: yt_weekly
+    sources:
+      - name: Dwarkesh Patel
+        channel_id: UCXl4i9dYBrFOabk0xGmbkRA
+
   - key: yt.dive.study
     db: youtube
     issue: yt_weekly
@@ -109,6 +133,10 @@ feeds:
         channel_id: UCP5Kd0smdWe9H_bDH-73c6Q
       - name: Frontline PBS
         channel_id: UC3ScyryU9Oy9Wse3a8OAmYQ
+      - name: 柴知道
+        channel_id: UCQtwvRQWnT5Buh9hpvNNryQ
+      - name: IC实验室
+        channel_id: UCJ1zX4FZA15dwE2olLAO3-w
 
   - key: yt.dive.politics
     db: youtube
@@ -120,6 +148,24 @@ feeds:
       - name: 马司库
         channel_id: UC3411UsjUC2t-Xfr1gwIhzg
         mode: subtitle
+      - name: Stan的聊政事儿频道
+        channel_id: UCQlsPZL9hFasMEX7ywG_sfQ
+        mode: subtitle
+      - name: 摄徒日记
+        channel_id: UCvTe3Z7TZsjGzUERx4Ce6zA
+      - name: 小叔TV
+        channel_id: UCPNfoYdMopKZKlaTB92g-QQ
+      - name: 王志安
+        channel_id: UCBKDRq35-L8xev4O7ZqBeLg
+      - name: 老梁
+        channel_id: UCr_F4Y9iboUKlg_ZPm4jkVQ
+  
+  - key: yt.dive.economics
+    db: youtube
+    issue: yt_weekly
+    sources:
+      - name: 老厉害
+        channel_id: UC8gZZWIWmBuCb_gzC8DUrvw
 
   - key: yt.zen
     db: youtube
@@ -127,17 +173,38 @@ feeds:
     sources:
       - name: 十三要和拳头
         channel_id: UCduz2zplHaYCAtiaEIcxErw
-      - name: 张八筒
-        channel_id: UCaAXpJRNswRKICOGGdGRpWA
       - name: Mira 004
         channel_id: UCM3O_udrQjPU72oRNVipYBQ
       - name: Jason-老湿
         channel_id: UC5BC7UNoExVELezGVlV_bYg
         mode: audio
-      - name: Ellen 李
-        channel_id: UCsBYq6iSNLIpwr5X2sPmuHQ
+      - name: 三度c
+        channel_id: UCIlv2zQgmulRhEa1yCGLhpg
       - name: Funny Lulu 2.0
         channel_id: UC2pXkPVfSKPFViEIvsGNuMA
+        mode: video
+      - name: 11区小豪的故事
+        channel_id: UCk5yPS6FfbJjeaY-PwczPvw
+      - name: 金毛评测犬
+        channel_id: UCjeo-SCLqpLjidXiTNRVvVA
+      - name: 大碗拿铁
+        channel_id: UCAYKS2PYe9Dv6Gd4OjgwjQg
+      - name: 自说自话的总裁
+        channel_id: UCgo_-fjJxnLwwwq5dSY72rg
+
+  - key: yt.zen.psychology
+    db: youtube
+    issue: yt_weekly
+    sources:
+      - name: Ellen 李
+        channel_id: UCsBYq6iSNLIpwr5X2sPmuHQ
+      - name: 人性黑書
+        channel_id: UC-8qeOjUEf4F9tJO5QGviDg
+
+  - key: yt.zen.pets
+    db: youtube
+    issue: yt_weekly
+    sources:
       - name: 泰哥是只小暖猫
         channel_id: UC820rtkN9apWeN5t9GKz8lw
         mode: video
@@ -146,14 +213,15 @@ feeds:
         mode: video
       - name: 一只笨鼠
         channel_id: UCUnvudhyaywzo8gygpURLLg
-        mode: video
-      - name: 人性黑書
-        channel_id: UC-8qeOjUEf4F9tJO5QGviDg
 
-  - key: yt.zen.girl
+  - key: yt.zen.lovers
     db: youtube
     issue: yt_weekly
     sources:
+      - name: 张八筒
+        channel_id: UCaAXpJRNswRKICOGGdGRpWA
+      - name: 做我的猫
+        channel_id: UC8gKBuEj6LZSz42TFvRILAg
       - name: 凱哥帶你撩妹
         channel_id: FILL_ME
       - name: 凯南教聊天
@@ -162,7 +230,6 @@ feeds:
         channel_id: FILL_ME
       - name: 凯哥带你脱单
         channel_id: UCjD4XGxZRvCusBrYUUQLeEw
-
 
   - key: yt.zen.music
     db: youtube

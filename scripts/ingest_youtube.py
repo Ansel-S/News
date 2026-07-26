@@ -98,14 +98,15 @@ def clean_vtt(vtt: str) -> str:
     return " ".join(lines)
 
 
-def download_media(video_url: str, video_id: str, *, audio_only: bool) -> Path | None:
-    """Download a low-res video (vp09/av01, <=720p) or audio-only track for
-    channels where subtitles aren't useful. Returns the output file path, or
-    None on failure. Caller is responsible for uploading it as a GitHub
-    Release asset and deleting the local copy afterwards."""
+def download_media(video_url: str, video_id: str, *, kind: str) -> Path | None:
+    """Download a low-res video (vp09/av01, <=720p) or audio-only track.
+    `kind` is 'video' or 'audio' — used as a filename suffix so a channel that
+    wants both doesn't have one overwrite the other. Returns the output file
+    path, or None on failure. Caller uploads it as a GitHub Release asset and
+    deletes the local copy afterwards."""
     MEDIA_OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out_tmpl = str(MEDIA_OUT_DIR / f"{video_id}.%(ext)s")
-    fmt = AUDIO_FORMAT if audio_only else VIDEO_FORMAT
+    out_tmpl = str(MEDIA_OUT_DIR / f"{video_id}.{kind}.%(ext)s")
+    fmt = AUDIO_FORMAT if kind == "audio" else VIDEO_FORMAT
     cmd = [
         "yt-dlp", "-f", fmt,
         "--no-playlist",
@@ -118,7 +119,7 @@ def download_media(video_url: str, video_id: str, *, audio_only: bool) -> Path |
         return None
     if result.returncode != 0:
         return None
-    matches = list(MEDIA_OUT_DIR.glob(f"{video_id}.*"))
+    matches = list(MEDIA_OUT_DIR.glob(f"{video_id}.{kind}.*"))
     return matches[0] if matches else None
 
 
@@ -128,7 +129,7 @@ def insert_error(r: str, source_id: str, stage: str, msg: str) -> None:
 
 
 def process_entry(entry, *, channel_id: str, channel_name: str,
-                  feed_key: str, mode: str, r: str) -> None:
+                  feed_key: str, modes: list[str], r: str) -> None:
     video_url = entry.get("link", "")
     if not video_url:
         return
@@ -145,41 +146,56 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
         video_id = m.group(1) if m else ""
 
     subtitle: str | None = None
-    media_path: Path | None = None
+    media_paths: dict[str, Path] = {}  # kind -> path, e.g. {"video": ..., "audio": ...}
 
-    if mode in ("subtitle", "mixed"):
+    want_subtitle = "subtitle" in modes or "mixed" in modes
+    want_video    = "video" in modes
+    want_audio    = "audio" in modes
+
+    if want_subtitle:
         vtt      = download_subtitle(video_url)
         subtitle = clean_vtt(vtt) if vtt else None
 
-    if mode in ("video", "audio"):
-        media_path = download_media(video_url, video_id, audio_only=(mode == "audio"))
-        # media_path is left on disk under MEDIA_OUT_DIR; the calling workflow
-        # step uploads it as a GitHub Release asset (gh release upload) and
-        # is responsible for cleanup — see .github/workflows/yt_weekly.yml
-    elif mode == "mixed" and not subtitle:
-        # Subtitles came back empty for a "mixed" channel — fall back to a
-        # low-res video so the story isn't lost entirely.
-        media_path = download_media(video_url, video_id, audio_only=False)
+    if want_video:
+        p = download_media(video_url, video_id, kind="video")
+        if p:
+            media_paths["video"] = p
+    if want_audio:
+        p = download_media(video_url, video_id, kind="audio")
+        if p:
+            media_paths["audio"] = p
 
-    if media_path:
+    if "mixed" in modes and not subtitle and not media_paths:
+        # Subtitles came back empty and no explicit video/audio was requested —
+        # fall back to a low-res video so the story isn't lost entirely.
+        p = download_media(video_url, video_id, kind="video")
+        if p:
+            media_paths["video"] = p
+
+    for kind, path in media_paths.items():
         MEDIA_MAP_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(MEDIA_MAP_FILE, "a", encoding="utf-8") as f:
-            f.write(f"{video_id}\t{video_url}\n")
+            f.write(f"{path.name}\t{video_url}\n")
 
     insert_yt(
         video_url=video_url, video_id=video_id,
         channel_id=channel_id, channel_name=channel_name,
         feed_key=feed_key, title=entry.get("title", ""),
         subtitle=subtitle, published_at=entry.get("published", r),
-        mode=mode,
+        mode=",".join(modes),
         # media_url is filled in later by the workflow, after the GitHub
-        # Release upload step, via set_yt_media_url()
+        # Release upload step, via set_yt_media_url() — one call per kind,
+        # stored as JSON in the media_url column (see db_utils.set_yt_media_url)
     )
-    status = "subtitle OK" if subtitle else ("media OK" if media_path else "no subtitle/media")
-    print(f"  [{channel_name}] {entry.get('title', '')[:55]} — {status} (mode={mode})")
+    status_bits = []
+    if subtitle:
+        status_bits.append("subtitle")
+    status_bits += list(media_paths.keys())
+    status = "+".join(status_bits) if status_bits else "nothing found"
+    print(f"  [{channel_name}] {entry.get('title', '')[:55]} — {status} (modes={modes})")
 
 
-def fetch_channel(channel_id: str, channel_name: str, feed_key: str, mode: str, r: str) -> None:
+def fetch_channel(channel_id: str, channel_name: str, feed_key: str, modes: list[str], r: str) -> None:
     url = yt_feed_url(channel_id)
     try:
         resp = requests.get(url, timeout=30)
@@ -188,11 +204,22 @@ def fetch_channel(channel_id: str, channel_name: str, feed_key: str, mode: str, 
         for entry in feed.entries:
             try:
                 process_entry(entry, channel_id=channel_id, channel_name=channel_name,
-                              feed_key=feed_key, mode=mode, r=r)
+                              feed_key=feed_key, modes=modes, r=r)
             except Exception as ex:
                 insert_error(r, entry.get("link", url), "parse", str(ex))
     except Exception as ex:
         insert_error(r, url, "fetch", str(ex))
+
+
+def _normalize_modes(raw) -> list[str]:
+    """Accept either the old single-string form or the new list form.
+    Unknown/FILL_ME entries fall back to ['mixed'] (today's default behavior)."""
+    if raw is None:
+        return ["mixed"]
+    if isinstance(raw, str):
+        raw = [raw]
+    modes = [m for m in raw if m in VALID_MODES]
+    return modes or ["mixed"]
 
 
 def main() -> None:
@@ -204,18 +231,16 @@ def main() -> None:
             cid = src.get("channel_id", "")
             if not cid or cid == "FILL_ME":
                 continue
-            mode = src.get("mode", "mixed")
-            if mode == "FILL_ME" or mode not in VALID_MODES:
-                mode = "mixed"  # unclassified channels get today's default behavior
+            modes = _normalize_modes(src.get("mode"))
             tasks.append(dict(channel_id=cid, channel_name=src["name"],
-                              feed_key=feed_key, mode=mode))
+                              feed_key=feed_key, modes=modes))
 
     print(f"ingest_youtube: {len(tasks)} channels, {MAX_WORKERS} workers")
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as exe:
         futures = {
             exe.submit(fetch_channel, t["channel_id"], t["channel_name"],
-                      t["feed_key"], t["mode"], r): t
+                      t["feed_key"], t["modes"], r): t
             for t in tasks
         }
         for future in as_completed(futures):
