@@ -5,10 +5,12 @@ youtube.db attached as file containing full subtitles.
 """
 from __future__ import annotations
 import html as _html
-import json
 from collections import defaultdict
 from pathlib import Path
-from db_utils import get_unpushed_yt, mark_pushed_yt, run_id as new_run_id
+from db_utils import (
+    get_unpushed_yt, get_unpushed_yt_media, mark_pushed_yt, get_yt_media,
+    run_id as new_run_id,
+)
 from config import db_path
 from render_base import fmt_date, email_shell, section_heading, MUTED, TEXT, ACCENT, BORDER, MONO
 import render_yt_markdown
@@ -39,15 +41,10 @@ def video_row(row) -> str:
     url      = _html.escape(row["video_url"])
     ch       = _html.escape(row["channel_name"])
     pub      = (row["published_at"] or "")[:10]
-    has_sub  = bool(row["has_subtitle"])
-    media_url_raw = row["media_url"] if "media_url" in row.keys() else None
-
-    media_links: dict[str, str] = {}
-    if media_url_raw:
-        try:
-            media_links = json.loads(media_url_raw)
-        except (json.JSONDecodeError, TypeError):
-            media_links = {}
+    # yt_media_items rows have no `subtitle` column at all (no subtitle text
+    # was ever found for them) — .keys() check avoids a KeyError there.
+    has_sub  = "subtitle" in row.keys() and bool(row["subtitle"])
+    media_links = get_yt_media(row["video_id"])
 
     badges = []
     if has_sub:
@@ -80,7 +77,9 @@ def video_row(row) -> str:
 
 def main() -> None:
     issue_id = new_run_id()
-    rows     = get_unpushed_yt(ISSUE_TYPE)
+    sub_rows   = get_unpushed_yt(ISSUE_TYPE)
+    media_rows = get_unpushed_yt_media(ISSUE_TYPE)
+    rows = list(sub_rows) + list(media_rows)
     if not rows:
         print("render_yt: nothing to send")
         return
@@ -95,15 +94,16 @@ def main() -> None:
         except ValueError:
             return 99
 
-    with_sub = sum(1 for r in rows if r["has_subtitle"])
-    zip_count = render_yt_markdown.write_and_zip(rows)
+    # Only yt_items rows have subtitle text to export; yt_media_items rows
+    # are title + download-link only and are shown inline via video_row().
+    zip_count = render_yt_markdown.write_and_zip(sub_rows)
 
     parts = [
         f'<p style="margin:0 0 32px;font-size:13px;color:{MUTED}">'
-        f'{len(rows)} videos &middot; {with_sub} with subtitles &middot; '
+        f'{len(rows)} videos ({len(sub_rows)} with subtitles) &middot; '
         f'full subtitles ({zip_count} files) in attached '
         f'<strong style="color:{TEXT}">yt_subtitles.zip</strong> &middot; '
-        f'720p downloads linked inline where available'
+        f'720p/audio downloads linked inline where available'
         f'</p>'
     ]
 
@@ -119,7 +119,7 @@ def main() -> None:
     date_str = fmt_date()
     html_out = email_shell(
         title=f"YouTube · {date_str}",
-        subtitle=f"{len(rows)} videos · {with_sub} with subtitles",
+        subtitle=f"{len(rows)} videos ({len(sub_rows)} with subtitles)",
         body="\n".join(parts),
         issue_label="YouTube Weekly",
     )
@@ -128,7 +128,8 @@ def main() -> None:
 
     for row in rows:
         mark_pushed_yt(row["id"], ISSUE_TYPE, issue_id)
-    print(f"render_yt: {len(rows)} videos → {OUT_HTML.name}")
+    print(f"render_yt: {len(rows)} videos ({len(sub_rows)} subtitle + "
+          f"{len(media_rows)} media-only) → {OUT_HTML.name}")
 
 
 if __name__ == "__main__":

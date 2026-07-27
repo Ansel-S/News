@@ -95,6 +95,25 @@ CREATE TABLE IF NOT EXISTS push_log (
 );
 
 -- ── youtube.db ───────────────────────────────────────────────────────────────
+-- Split into tables to keep the db small and each reader query targeted:
+--   yt_seen        — dedup only, every processed video regardless of mode/content.
+--                    Tiny rows (a hash + id + timestamp), safe to grow unbounded.
+--   yt_items       — videos that produced subtitle text. Full content, read by
+--                    render_yt.py for the weekly email body + subtitle zip.
+--   yt_media_items — videos from video/audio-only channels with NO subtitle
+--                    text — still need a title + download-link row in the
+--                    weekly email, just without bloating yt_items with empty
+--                    content. Disjoint from yt_items (a video is in exactly
+--                    one of the two, never both).
+--   yt_media       — one row per (video, kind) low-res video/audio Release
+--                    upload; joined against by video_id from either table above.
+
+CREATE TABLE IF NOT EXISTS yt_seen (
+    id          TEXT PRIMARY KEY,   -- sha256(video_url), same hash as yt_items.id
+    video_url   TEXT NOT NULL,
+    video_id    TEXT NOT NULL,
+    ingested_at TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS yt_items (
     id           TEXT PRIMARY KEY,   -- sha256(video_url)
@@ -104,13 +123,34 @@ CREATE TABLE IF NOT EXISTS yt_items (
     channel_name TEXT NOT NULL,
     feed_key     TEXT NOT NULL,      -- e.g. "yt.daily.tech"
     title        TEXT,
-    subtitle     TEXT,               -- cleaned subtitle text
+    subtitle     TEXT NOT NULL,      -- cleaned subtitle text (always non-empty here)
     published_at TEXT,
     ingested_at  TEXT NOT NULL,
-    has_subtitle INTEGER DEFAULT 0,  -- 0 | 1
-    mode         TEXT DEFAULT 'mixed',  -- subtitle | video | mixed | audio
-    media_url    TEXT              -- GitHub Release asset URL, if a low-res
-                                    -- video/audio file was uploaded for this video
+    mode         TEXT DEFAULT 'mixed'  -- subtitle | video | mixed | audio | comma-joined combo
+);
+
+-- Videos from video/audio-only channels (no subtitle text at all) still need
+-- to show up in the weekly email as a title + download-link row, without
+-- bloating yt_items with an empty/NOT-NULL-violating subtitle column.
+CREATE TABLE IF NOT EXISTS yt_media_items (
+    id           TEXT PRIMARY KEY,   -- sha256(video_url), same hash scheme as yt_items
+    video_url    TEXT NOT NULL,
+    video_id     TEXT NOT NULL,
+    channel_id   TEXT NOT NULL,
+    channel_name TEXT NOT NULL,
+    feed_key     TEXT NOT NULL,
+    title        TEXT,
+    published_at TEXT,
+    ingested_at  TEXT NOT NULL,
+    mode         TEXT DEFAULT 'video'
+);
+
+CREATE TABLE IF NOT EXISTS yt_media (
+    video_id    TEXT NOT NULL,
+    kind        TEXT NOT NULL,        -- 'video' | 'audio'
+    media_url   TEXT NOT NULL,        -- GitHub Release asset URL
+    ingested_at TEXT NOT NULL,
+    PRIMARY KEY (video_id, kind)
 );
 
 CREATE TABLE IF NOT EXISTS push_log (

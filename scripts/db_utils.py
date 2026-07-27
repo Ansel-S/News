@@ -3,7 +3,6 @@ db_utils.py — Shared database read/write utilities for all databases
 """
 from __future__ import annotations
 import hashlib
-import json
 import re
 import sqlite3
 from datetime import datetime, UTC
@@ -90,18 +89,27 @@ def mark_pushed(db: str, item_id: str, issue_type: str, issue_id: str) -> None:
         )
 
 
-def get_unpushed(db: str, issue_type: str) -> list[sqlite3.Row]:
-    """All items not yet sent in this issue type, newest first."""
-    with _conn(db) as c:
-        return c.execute(
-            """SELECT i.* FROM items i
+def get_unpushed(db: str, issue_type: str, *, exclude_feed_prefix: str | None = None) -> list[sqlite3.Row]:
+    """All items not yet sent in this issue type, newest first.
+
+    `exclude_feed_prefix`: skip rows whose feed_key starts with this prefix.
+    Needed because get_unpushed filters by (db, issue_type) — rows sharing
+    the same db but tagged with a different issue_type (e.g. "extra_daily"
+    rows living in core.db alongside "daily" rows) would otherwise still be
+    picked up here as long as they've never been pushed under THIS issue_type.
+    """
+    query = """SELECT i.* FROM items i
                WHERE NOT EXISTS (
                  SELECT 1 FROM push_log p
                  WHERE p.item_id=i.id AND p.issue_type=?
-               )
-               ORDER BY created_at DESC""",
-            (issue_type,),
-        ).fetchall()
+               )"""
+    params: list = [issue_type]
+    if exclude_feed_prefix:
+        query += " AND i.feed_key NOT LIKE ?"
+        params.append(f"{exclude_feed_prefix}%")
+    query += " ORDER BY created_at DESC"
+    with _conn(db) as c:
+        return c.execute(query, params).fetchall()
 
 
 # ── report.db ────────────────────────────────────────────────────────────────
@@ -196,55 +204,113 @@ def mark_pushed_hn(item_id: str, issue_type: str, issue_id: str) -> None:
 # ── youtube.db ───────────────────────────────────────────────────────────────
 
 def yt_exists(video_url: str) -> bool:
+    """Dedup check — looks at yt_seen, which every processed video is
+    recorded in regardless of whether it had subtitles or not."""
     with _conn("youtube") as c:
         return c.execute(
-            "SELECT 1 FROM yt_items WHERE video_url=? LIMIT 1", (video_url,)
+            "SELECT 1 FROM yt_seen WHERE id=? LIMIT 1", (item_hash(video_url),)
         ).fetchone() is not None
+
+
+def mark_yt_seen(video_url: str, video_id: str) -> None:
+    """Record that this video has been processed, for dedup purposes only.
+    Called for every video regardless of mode or whether subtitles/media
+    were successfully retrieved — this is what keeps re-runs from
+    re-downloading video/audio-only channels that never touch yt_items."""
+    with _conn("youtube") as c:
+        c.execute(
+            """INSERT OR IGNORE INTO yt_seen (id, video_url, video_id, ingested_at)
+               VALUES (?,?,?,?)""",
+            (item_hash(video_url), video_url, video_id, now_iso()),
+        )
 
 
 def insert_yt(
     *, video_url: str, video_id: str, channel_id: str, channel_name: str,
     feed_key: str, title: str, subtitle: str | None, published_at: str,
-    mode: str = "mixed", media_url: str | None = None,
+    mode: str = "mixed",
 ) -> None:
+    """Only writes to yt_items when subtitle text was actually found — this
+    is the table render_yt.py reads for the weekly email + subtitle zip.
+    Videos with no subtitle (pure video/audio-mode channels) are NOT written
+    here, keeping youtube.db limited to content that's actually readable.
+    Dedup for those videos is still handled separately via mark_yt_seen()."""
+    if not subtitle:
+        return
     with _conn("youtube") as c:
         c.execute(
             """INSERT OR IGNORE INTO yt_items
                (id, video_url, video_id, channel_id, channel_name, feed_key,
-                title, subtitle, published_at, ingested_at, has_subtitle, mode, media_url)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                title, subtitle, published_at, ingested_at, mode)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
             (item_hash(video_url), video_url, video_id, channel_id, channel_name,
-             feed_key, title, subtitle, published_at, now_iso(),
-             1 if subtitle else 0, mode, media_url),
+             feed_key, title, subtitle, published_at, now_iso(), mode),
         )
 
 
-def set_yt_media_url(video_url: str, kind: str, media_url: str) -> None:
-    """Record a download URL for one kind of media ('video' or 'audio') after
-    it's been uploaded as a GitHub Release asset. A single video can have both
-    a video and an audio release, so media_url stores a JSON object like
-    {"video": "https://...", "audio": "https://..."} rather than one string."""
+def insert_yt_media_item(
+    *, video_url: str, video_id: str, channel_id: str, channel_name: str,
+    feed_key: str, title: str, published_at: str, mode: str = "video",
+) -> None:
+    """Videos from video/audio-only channels with no subtitle text still need
+    a title + download-link row in the weekly email. Written here instead of
+    yt_items, which keeps yt_items limited to rows with actual subtitle
+    content. A video is in exactly one of yt_items / yt_media_items, never
+    both — insert_yt() already returns early when subtitle is empty."""
     with _conn("youtube") as c:
-        row = c.execute(
-            "SELECT media_url FROM yt_items WHERE id=?", (item_hash(video_url),)
-        ).fetchone()
-        existing = {}
-        if row and row["media_url"]:
-            try:
-                existing = json.loads(row["media_url"])
-            except (json.JSONDecodeError, TypeError):
-                existing = {}
-        existing[kind] = media_url
         c.execute(
-            "UPDATE yt_items SET media_url=? WHERE id=?",
-            (json.dumps(existing), item_hash(video_url)),
+            """INSERT OR IGNORE INTO yt_media_items
+               (id, video_url, video_id, channel_id, channel_name, feed_key,
+                title, published_at, ingested_at, mode)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (item_hash(video_url), video_url, video_id, channel_id, channel_name,
+             feed_key, title, published_at, now_iso(), mode),
         )
+
+
+def set_yt_media_url(video_id: str, kind: str, media_url: str) -> None:
+    """Record a download URL for one kind of media ('video' or 'audio') after
+    it's been uploaded as a GitHub Release asset. Stored in yt_media, keyed
+    by (video_id, kind) — independent of whether this video also has a
+    yt_items row, since most video/audio-mode channels won't."""
+    with _conn("youtube") as c:
+        c.execute(
+            """INSERT INTO yt_media (video_id, kind, media_url, ingested_at)
+               VALUES (?,?,?,?)
+               ON CONFLICT(video_id, kind) DO UPDATE SET media_url=excluded.media_url""",
+            (video_id, kind, media_url, now_iso()),
+        )
+
+
+def get_yt_media(video_id: str) -> dict[str, str]:
+    """Return {"video": url, "audio": url} for whichever kinds were uploaded."""
+    with _conn("youtube") as c:
+        rows = c.execute(
+            "SELECT kind, media_url FROM yt_media WHERE video_id=?", (video_id,)
+        ).fetchall()
+        return {r["kind"]: r["media_url"] for r in rows}
 
 
 def get_unpushed_yt(issue_type: str) -> list[sqlite3.Row]:
     with _conn("youtube") as c:
         return c.execute(
             """SELECT y.* FROM yt_items y
+               WHERE NOT EXISTS (
+                 SELECT 1 FROM push_log p
+                 WHERE p.item_id=y.id AND p.issue_type=?
+               )
+               ORDER BY feed_key, published_at DESC""",
+            (issue_type,),
+        ).fetchall()
+
+
+def get_unpushed_yt_media(issue_type: str) -> list[sqlite3.Row]:
+    """Videos with no subtitle (video/audio-only channels) — title + download
+    link only, no full content. Uses the same push_log item_id namespace as
+    yt_items (both hash from video_url), so a video never double-counts."""
+    with _conn("youtube") as c:
+        return c.execute(
+            """SELECT y.* FROM yt_media_items y
                WHERE NOT EXISTS (
                  SELECT 1 FROM push_log p
                  WHERE p.item_id=y.id AND p.issue_type=?

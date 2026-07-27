@@ -38,7 +38,7 @@ jobs:
       - name: Render daily HTML
         run: python scripts/render_daily.py
 
-      - name: Ensure zip attachment exists
+      - name: Ensure daily zip attachment exists
         run: |
           if [ ! -f out_daily.zip ]; then
             echo "no full-text articles today" > _placeholder.txt
@@ -46,11 +46,20 @@ jobs:
             rm _placeholder.txt
           fi
 
-      - name: Read subject
+      - name: Upload today's daily assets to GitHub Release
+        run: |
+          python scripts/upload_daily_release.py \
+            --repo "${{ github.repository }}" \
+            --tag "$(date -u +'%Y-%m-%d')" \
+            out_daily.zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Read daily subject
         id: subject
         run: echo "value=$(cat out_daily_subject.txt)" >> "$GITHUB_OUTPUT"
 
-      - name: Send email
+      - name: Send daily email
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -63,6 +72,57 @@ jobs:
           subject: ${{ steps.subject.outputs.value }}
           html_body: file://out_daily.html
           attachments: out_daily.zip
+
+      - name: Render Extra HTML (TLDR / Ruanyf / HelloGitHub)
+        run: python scripts/render_extra.py
+
+      - name: Check if Extra has content
+        id: extra_check
+        run: |
+          if [ -f out_extra.html ]; then
+            echo "has_content=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_content=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ensure extra zip attachment exists
+        if: steps.extra_check.outputs.has_content == 'true'
+        run: |
+          if [ ! -f out_extra.zip ]; then
+            echo "no full-text articles today" > _placeholder.txt
+            zip out_extra.zip _placeholder.txt
+            rm _placeholder.txt
+          fi
+
+      - name: Upload today's extra assets to GitHub Release
+        if: steps.extra_check.outputs.has_content == 'true'
+        run: |
+          python scripts/upload_daily_release.py \
+            --repo "${{ github.repository }}" \
+            --tag "$(date -u +'%Y-%m-%d')" \
+            out_extra.zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Read extra subject
+        if: steps.extra_check.outputs.has_content == 'true'
+        id: extra_subject
+        run: echo "value=$(cat out_extra_subject.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Send extra email
+        if: steps.extra_check.outputs.has_content == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          to: ${{ secrets.TO_EMAIL }}
+          from: Dewsletter <${{ secrets.SMTP_USER }}>
+          subject: ${{ steps.extra_subject.outputs.value }}
+          html_body: file://out_extra.html
+          attachments: out_extra.zip
 
       - name: Commit databases (LFS)
         continue-on-error: true

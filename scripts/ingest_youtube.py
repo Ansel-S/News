@@ -17,14 +17,20 @@ import feedparser
 import requests
 
 from config import yt_feeds
-from db_utils import run_id, yt_exists, insert_yt, insert_error as _err, now_iso
+from db_utils import (
+    run_id, yt_exists, mark_yt_seen, insert_yt, insert_yt_media_item,
+    insert_error as _err, now_iso,
+)
 
 MAX_WORKERS   = int(os.getenv("YT_WORKERS", "3"))
 LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "8"))
 RETRY_SOURCE  = os.getenv("RETRY_ONLY_SOURCE")
 
+# Where low-res video/audio downloads land before being uploaded as GitHub
+# Release assets by the workflow. Each file must stay under GitHub's 2 GiB
+# per-asset limit (no total-size limit on a release) — see docs.github.com
+# /en/repositories/releasing-projects-on-github/about-releases
 MEDIA_OUT_DIR = Path(os.getenv("YT_MEDIA_DIR", "media_out"))
-MEDIA_MAP_FILE = MEDIA_OUT_DIR / "_video_id_to_url.tsv"
 
 # Target: smallest reasonable quality, still watchable/listenable.
 # vp09/av01 @ 720p (or below, whichever is available) video-only when we don't
@@ -64,6 +70,8 @@ def pick_subtitle_file(tmp_dir: Path) -> Path | None:
 
     non_en = [f for f in candidates if not is_english(f)]
     pool = non_en or candidates
+    # Prefer vtt over ass when both exist for the same language, since vtt is
+    # simpler to clean and usually higher fidelity for auto-generated subs.
     vtt_pool = [f for f in pool if f.suffix == ".vtt"]
     return vtt_pool[0] if vtt_pool else pool[0]
 
@@ -97,6 +105,9 @@ def clean_ass(ass: str) -> str:
     for raw_line in ass.splitlines():
         if not raw_line.startswith("Dialogue:"):
             continue
+        # Dialogue: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
+        # Text is the 10th comma-separated field, but may itself contain commas,
+        # so split with a limit.
         fields = raw_line.split(",", 9)
         if len(fields) < 10:
             continue
@@ -173,7 +184,7 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
         video_id = m.group(1) if m else ""
 
     subtitle: str | None = None
-    media_paths: dict[str, Path] = {}
+    media_paths: dict[str, Path] = {}  # kind -> path, e.g. {"video": ..., "audio": ...}
 
     want_subtitle = "subtitle" in modes or "mixed" in modes
     want_video    = "video" in modes
@@ -192,6 +203,11 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
             media_paths["audio"] = p
 
     if "mixed" in modes and not subtitle and not media_paths:
+        # Subtitles came back empty and no explicit video/audio was requested.
+        # Fallback order mirrors the "listening > watching" preference:
+        # try audio first, and only fall back to a low-res video if even
+        # that isn't available (e.g. a members-only or otherwise restricted
+        # audio stream).
         p = download_media(video_url, video_id, kind="audio")
         if p:
             media_paths["audio"] = p
@@ -200,18 +216,30 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
             if p:
                 media_paths["video"] = p
 
-    for kind, path in media_paths.items():
-        MEDIA_MAP_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(MEDIA_MAP_FILE, "a", encoding="utf-8") as f:
-            f.write(f"{path.name}\t{video_url}\n")
+    # Every processed video is marked seen for dedup, regardless of whether
+    # it produced subtitles, video, or audio — this is what stops pure
+    # video/audio-mode channels from being re-downloaded on every run even
+    # though they never get a yt_items row.
+    mark_yt_seen(video_url, video_id)
 
     insert_yt(
         video_url=video_url, video_id=video_id,
         channel_id=channel_id, channel_name=channel_name,
         feed_key=feed_key, title=entry.get("title", ""),
         subtitle=subtitle, published_at=entry.get("published", r),
-        mode=",".join(modes)
+        mode=",".join(modes),
+        # insert_yt is a no-op if subtitle is empty/None — only videos that
+        # actually produced subtitle text get a yt_items row.
     )
+    if not subtitle and media_paths:
+        # No subtitle text, but this video/audio-only channel still needs a
+        # title + download-link row in the weekly email — see yt_media_items.
+        insert_yt_media_item(
+            video_url=video_url, video_id=video_id,
+            channel_id=channel_id, channel_name=channel_name,
+            feed_key=feed_key, title=entry.get("title", ""),
+            published_at=entry.get("published", r), mode=",".join(modes),
+        )
     status_bits = []
     if subtitle:
         status_bits.append("subtitle")

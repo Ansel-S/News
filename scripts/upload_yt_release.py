@@ -3,6 +3,11 @@ upload_yt_release.py — Upload low-res video/audio files (from ingest_youtube.p
 `video`/`audio` mode downloads) as GitHub Release assets, then record the
 resulting download URL back into youtube.db.
 
+Releases are organized by day: tag = today's date (yyyy-mm-dd), e.g. "2026-07-27".
+Every workflow that produces assets for today (yt_weekly, daily, etc.) uploads
+to the SAME day's release — whichever runs first creates it, later runs just
+add more assets (create-if-not-exists, no waiting for a nightly batch job).
+
 GitHub Release limits (docs.github.com/en/repositories/releasing-projects-on-github/about-releases):
   - each asset must be < 2 GiB
   - up to 1000 assets per release
@@ -13,7 +18,7 @@ Requires the `gh` CLI to be authenticated (GH_TOKEN / GITHUB_TOKEN env var,
 already available by default in GitHub Actions).
 
 Usage:
-  python scripts/upload_yt_release.py --repo owner/name --tag yt-2026-07-22
+  python scripts/upload_yt_release.py --repo owner/name --tag 2026-07-27
 """
 from __future__ import annotations
 
@@ -76,13 +81,7 @@ def video_id_and_kind_from_filename(path: Path) -> tuple[str, str]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", required=True, help="owner/name")
-    ap.add_argument("--tag", required=True, help="release tag, e.g. yt-2026-07-22")
-    ap.add_argument("--video-url-map", default=str(MEDIA_DIR / "_video_id_to_url.tsv"),
-                     help=(
-        "Path to a text file of '<video_id>\\t<video_url>' lines for mapping "
-        "filenames back to video_url (default: media_out/_video_id_to_url.tsv, "
-        "written automatically by ingest_youtube.py)."
-    ))
+    ap.add_argument("--tag", required=True, help="release tag, e.g. 2026-07-27")
     args = ap.parse_args()
 
     if not MEDIA_DIR.exists():
@@ -94,15 +93,6 @@ def main() -> None:
         print("upload_yt_release: media_out/ is empty, nothing to upload")
         return
 
-    id_to_url: dict[str, str] = {}
-    if args.video_url_map:
-        map_path = Path(args.video_url_map)
-        if map_path.exists():
-            for line in map_path.read_text(encoding="utf-8").splitlines():
-                if "\t" in line:
-                    fname, url = line.split("\t", 1)
-                    id_to_url[fname.strip()] = url.strip()
-
     ensure_release(args.repo, args.tag)
 
     uploaded, failed = 0, 0
@@ -113,9 +103,7 @@ def main() -> None:
             continue
         uploaded += 1
         vid, kind = video_id_and_kind_from_filename(f)
-        video_url = id_to_url.get(f.name) or id_to_url.get(vid)
-        if video_url:
-            set_yt_media_url(video_url, kind, url)
+        set_yt_media_url(vid, kind, url)
         print(f"  [ok] {f.name} ({kind}) -> {url}")
 
     print(f"upload_yt_release: {uploaded} uploaded, {failed} failed")

@@ -46,7 +46,7 @@ jobs:
           if [ -d media_out ] && [ "$(find media_out -type f ! -name '*.tsv' | wc -l)" -gt 0 ]; then
             python scripts/upload_yt_release.py \
               --repo "${{ github.repository }}" \
-              --tag "yt-$(date -u +'%Y-%m-%d')"
+              --tag "$(date -u +'%Y-%m-%d')"
           else
             echo "no media to upload, skipping"
           fi

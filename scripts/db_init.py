@@ -98,6 +98,12 @@ SCHEMAS: dict[str, list[str]] = {
         )""",
     ],
     "youtube": [
+        """CREATE TABLE IF NOT EXISTS yt_seen (
+            id          TEXT PRIMARY KEY,
+            video_url   TEXT NOT NULL,
+            video_id    TEXT NOT NULL,
+            ingested_at TEXT NOT NULL DEFAULT ''
+        )""",
         """CREATE TABLE IF NOT EXISTS yt_items (
             id           TEXT PRIMARY KEY,
             video_url    TEXT NOT NULL,
@@ -106,12 +112,29 @@ SCHEMAS: dict[str, list[str]] = {
             channel_name TEXT NOT NULL,
             feed_key     TEXT NOT NULL,
             title        TEXT,
-            subtitle     TEXT,
+            subtitle     TEXT NOT NULL,
             published_at TEXT,
             ingested_at  TEXT NOT NULL DEFAULT '',
-            has_subtitle INTEGER DEFAULT 0,
-            mode         TEXT DEFAULT 'mixed',
-            media_url    TEXT
+            mode         TEXT DEFAULT 'mixed'
+        )""",
+        """CREATE TABLE IF NOT EXISTS yt_media_items (
+            id           TEXT PRIMARY KEY,
+            video_url    TEXT NOT NULL,
+            video_id     TEXT NOT NULL,
+            channel_id   TEXT NOT NULL,
+            channel_name TEXT NOT NULL,
+            feed_key     TEXT NOT NULL,
+            title        TEXT,
+            published_at TEXT,
+            ingested_at  TEXT NOT NULL DEFAULT '',
+            mode         TEXT DEFAULT 'video'
+        )""",
+        """CREATE TABLE IF NOT EXISTS yt_media (
+            video_id    TEXT NOT NULL,
+            kind        TEXT NOT NULL,
+            media_url   TEXT NOT NULL,
+            ingested_at TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY (video_id, kind)
         )""",
         """CREATE TABLE IF NOT EXISTS push_log (
             item_id    TEXT NOT NULL,
@@ -175,13 +198,57 @@ def _migrate(conn: sqlite3.Connection, name: str) -> None:
 
     if name == "youtube":
         existing = {r[1] for r in conn.execute("PRAGMA table_info(yt_items)")}
-        if "has_subtitle" not in existing:
-            conn.execute("ALTER TABLE yt_items ADD COLUMN has_subtitle INTEGER DEFAULT 0")
-        if "mode" not in existing:
-            conn.execute("ALTER TABLE yt_items ADD COLUMN mode TEXT DEFAULT 'mixed'")
-        if "media_url" not in existing:
-            conn.execute("ALTER TABLE yt_items ADD COLUMN media_url TEXT")
-        conn.commit()
+        is_old_schema = "has_subtitle" in existing or "media_url" in existing
+        if is_old_schema:
+            print("db_init: migrating youtube.db from old single-table schema...")
+            old_rows = conn.execute("SELECT * FROM yt_items").fetchall()
+            col_names = [d[0] for d in conn.execute("SELECT * FROM yt_items LIMIT 1").description] \
+                if old_rows else []
+
+            conn.execute("ALTER TABLE yt_items RENAME TO yt_items_old")
+            conn.execute("""CREATE TABLE yt_items (
+                id TEXT PRIMARY KEY, video_url TEXT NOT NULL, video_id TEXT NOT NULL,
+                channel_id TEXT NOT NULL, channel_name TEXT NOT NULL, feed_key TEXT NOT NULL,
+                title TEXT, subtitle TEXT NOT NULL, published_at TEXT,
+                ingested_at TEXT NOT NULL DEFAULT '', mode TEXT DEFAULT 'mixed'
+            )""")
+
+            import json as _json
+            for row in old_rows:
+                r = dict(zip(col_names, row))
+                # Every previously-seen video goes into yt_seen regardless of subtitle
+                conn.execute(
+                    "INSERT OR IGNORE INTO yt_seen (id, video_url, video_id, ingested_at) VALUES (?,?,?,?)",
+                    (r["id"], r["video_url"], r["video_id"], r.get("ingested_at", "")),
+                )
+                # Only rows that actually had subtitle text move to the new yt_items
+                if r.get("subtitle"):
+                    conn.execute(
+                        """INSERT OR IGNORE INTO yt_items
+                           (id, video_url, video_id, channel_id, channel_name, feed_key,
+                            title, subtitle, published_at, ingested_at, mode)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                        (r["id"], r["video_url"], r["video_id"], r["channel_id"], r["channel_name"],
+                         r["feed_key"], r["title"], r["subtitle"], r["published_at"],
+                         r.get("ingested_at", ""), r.get("mode", "mixed")),
+                    )
+                # media_url used to be a JSON blob like {"video": url, "audio": url}
+                raw_media = r.get("media_url")
+                if raw_media:
+                    try:
+                        media_dict = _json.loads(raw_media)
+                    except (ValueError, TypeError):
+                        media_dict = {}
+                    for kind, url in media_dict.items():
+                        conn.execute(
+                            """INSERT OR IGNORE INTO yt_media (video_id, kind, media_url, ingested_at)
+                               VALUES (?,?,?,?)""",
+                            (r["video_id"], kind, url, r.get("ingested_at", "")),
+                        )
+
+            conn.execute("DROP TABLE yt_items_old")
+            conn.commit()
+            print(f"db_init: migrated {len(old_rows)} youtube.db rows to the new 3-table schema")
 
 
 def main() -> None:
