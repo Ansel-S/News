@@ -71,8 +71,10 @@ feeds:
     sources:
       - name: 李大可爱玩
         channel_id: UCCeBr_ypzzFobTC7keWUbDg
+        mode: [video, audio]
       - name: 塔科女子
         channel_id: UCOiu59jL8MFIqq-HkIKCKFg
+        mode: [video, audio]
 
   - key: yt.digest.finance
     db: youtube
@@ -80,14 +82,16 @@ feeds:
     sources:
       - name: 美投讲美股
         channel_id: UCBUH38E0ngqvmTqdchWunwQ
-        mode: audio
+        mode: [audio]
       - name: 硅谷101
         channel_id: UCKV2yWPB3wn0RTZh3cTD8YA
-        mode: audio
+        mode: [audio]
       - name: 老周横眉
         channel_id: UCFDMMIHbtRdrVhHlGXVzApA
+        mode: [audio]
       - name: 北美王路飞
         channel_id: UCmajVvuOjspOA9WtJGquDHA
+        mode: [audio]
 
   - key: yt.digest.history
     db: youtube
@@ -95,8 +99,10 @@ feeds:
     sources:
       - name: 掌柜说历史
         channel_id: UCmaQHKSlg9QxMgzifrGFbCg
+        mode: [audio]
       - name: 李天豪
         channel_id: UCOrcp--cu4Egwdc07X44btA
+        mode: [audio]
 
   - key: yt.digest.sport
     db: youtube
@@ -104,13 +110,13 @@ feeds:
     sources:
       - name: 7mlc
         channel_id: UC9xRcqG8V6yNi6Hum92EoGg
-      - name: Takuya
-        channel_id: FILL_ME
+        mode: [video, audio]
       - name: SportsHD
         channel_id: UCU6JLYuerEUb7VrDd4zLihg
-        mode: video
+        mode: [video]
       - name: Pythagoras in Boots
         channel_id: UCorFnMmI4eXS1ftlY4PpTsw
+        mode: [video, audio]
 
   - key: yt.dive.ai
     db: youtube
@@ -118,6 +124,7 @@ feeds:
     sources:
       - name: Dwarkesh Patel
         channel_id: UCXl4i9dYBrFOabk0xGmbkRA
+        mode: [audio]
 
   - key: yt.dive.study
     db: youtube
@@ -125,18 +132,25 @@ feeds:
     sources:
       - name: 漫士沉思录
         channel_id: UC9D-nVmcQdCgAGUPBJZcmOA
+        mode: [video, audio]
       - name: 毕导 THU
         channel_id: UCKJvfb-6icHloy6MBpHg9aw
+        mode: [video, audio]
       - name: 芳斯塔芙
         channel_id: UClLEMac0ZjZCsVOTiaBtJBg
+        mode: [video, audio]
       - name: 何同学
         channel_id: UCP5Kd0smdWe9H_bDH-73c6Q
+        mode: [video, audio]
       - name: Frontline PBS
         channel_id: UC3ScyryU9Oy9Wse3a8OAmYQ
+        mode: [video, audio]
       - name: 柴知道
         channel_id: UCQtwvRQWnT5Buh9hpvNNryQ
+        mode: [audio]
       - name: IC实验室
         channel_id: UCJ1zX4FZA15dwE2olLAO3-w
+        mode: [audio]
 
   - key: yt.dive.politics
     db: youtube
@@ -144,21 +158,25 @@ feeds:
     sources:
       - name: VEXILLA 潮時務所
         channel_id: UCpC2D7JdcB8nlfzhX08i7fg
-        mode: subtitle
+        mode: [audio]
       - name: 马司库
         channel_id: UC3411UsjUC2t-Xfr1gwIhzg
-        mode: subtitle
+        mode: [audio]
       - name: Stan的聊政事儿频道
         channel_id: UCQlsPZL9hFasMEX7ywG_sfQ
-        mode: subtitle
+        mode: [audio]
       - name: 摄徒日记
         channel_id: UCvTe3Z7TZsjGzUERx4Ce6zA
+        mode: [audio]
       - name: 小叔TV
         channel_id: UCPNfoYdMopKZKlaTB92g-QQ
+        mode: [video, audio]
       - name: 王志安
         channel_id: UCBKDRq35-L8xev4O7ZqBeLg
+        mode: [audio]
       - name: 老梁
         channel_id: UCr_F4Y9iboUKlg_ZPm4jkVQ
+        mode: [audio]
   
   - key: yt.dive.economics
     db: youtube
@@ -166,6 +184,7 @@ feeds:
     sources:
       - name: 老厉害
         channel_id: UC8gZZWIWmBuCb_gzC8DUrvw
+        mode: [video, audio]
 
   - key: yt.zen
     db: youtube
@@ -173,22 +192,28 @@ feeds:
     sources:
       - name: 十三要和拳头
         channel_id: UCduz2zplHaYCAtiaEIcxErw
+        mode: [video, audio]
       - name: Mira 004
         channel_id: UCM3O_udrQjPU72oRNVipYBQ
+        mode: [video, audio]
       - name: Jason-老湿
         channel_id: UC5BC7UNoExVELezGVlV_bYg
+        mode: [audio]
         mode: audio
       - name: 三度c
         channel_id: UCIlv2zQgmulRhEa1yCGLhpg
       - name: Funny Lulu 2.0
         channel_id: UC2pXkPVfSKPFViEIvsGNuMA
-        mode: video
+        mode: [video, audio]
       - name: 11区小豪的故事
         channel_id: UCk5yPS6FfbJjeaY-PwczPvw
+        mode: [video, audio]
       - name: 金毛评测犬
         channel_id: UCjeo-SCLqpLjidXiTNRVvVA
+        mode: [video, audio]
       - name: 大碗拿铁
         channel_id: UCAYKS2PYe9Dv6Gd4OjgwjQg
+        mode: [video, audio]
       - name: 自说自话的总裁
         channel_id: UCgo_-fjJxnLwwwq5dSY72rg
 
@@ -198,8 +223,10 @@ feeds:
     sources:
       - name: Ellen 李
         channel_id: UCsBYq6iSNLIpwr5X2sPmuHQ
+        mode: [audio]
       - name: 人性黑書
         channel_id: UC-8qeOjUEf4F9tJO5QGviDg
+        mode: [subtitle]
 
   - key: yt.zen.pets
     db: youtube
@@ -207,12 +234,13 @@ feeds:
     sources:
       - name: 泰哥是只小暖猫
         channel_id: UC820rtkN9apWeN5t9GKz8lw
-        mode: video
+        mode: [video, audio]
       - name: 黄阿玛的后宫生活
         channel_id: UCw2W7GIqJNB-UMUxncnMuiw
-        mode: video
+        mode: [video, audio]
       - name: 一只笨鼠
         channel_id: UCUnvudhyaywzo8gygpURLLg
+        mode: [video, audio]
 
   - key: yt.zen.lovers
     db: youtube
@@ -220,16 +248,22 @@ feeds:
     sources:
       - name: 张八筒
         channel_id: UCaAXpJRNswRKICOGGdGRpWA
+        mode: [video, audio]
       - name: 做我的猫
         channel_id: UC8gKBuEj6LZSz42TFvRILAg
-      - name: 凱哥帶你撩妹
+        mode: [video, audio]
+      - name: 凯哥带你撩妹
         channel_id: FILL_ME
+        mode: [subtitle]
       - name: 凯南教聊天
         channel_id: UCJ5B2TYnDep7ToycB87AoOA
+        mode: [subtitle]
       - name: 凯哥教撩妹
         channel_id: FILL_ME
+        mode: [subtitle]
       - name: 凯哥带你脱单
         channel_id: UCjD4XGxZRvCusBrYUUQLeEw
+        mode: [subtitle]
 
   - key: yt.zen.music
     db: youtube
@@ -237,10 +271,10 @@ feeds:
     sources:
       - name: 悦耳音乐酱
         channel_id: UCqWNOHjgfL8ADEdXGznzwUw
-        mode: audio
+        mode: [audio]
       - name: 妙音人
         channel_id: UCIgUbcReolYR_R4-p54iomg
-        mode: audio
+        mode: [audio]
 
   - key: yt.zen.asmr
     db: youtube
@@ -248,3 +282,4 @@ feeds:
     sources:
       - name: FISH13
         channel_id: UCQnmZZUKvpY3IVSGf44MVVg
+        mode: [video, audio]
