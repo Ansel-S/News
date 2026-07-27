@@ -23,10 +23,6 @@ MAX_WORKERS   = int(os.getenv("YT_WORKERS", "3"))
 LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "8"))
 RETRY_SOURCE  = os.getenv("RETRY_ONLY_SOURCE")
 
-# Where low-res video/audio downloads land before being uploaded as GitHub
-# Release assets by the workflow. Each file must stay under GitHub's 2 GiB
-# per-asset limit (no total-size limit on a release) — see docs.github.com
-# /en/repositories/releasing-projects-on-github/about-releases
 MEDIA_OUT_DIR = Path(os.getenv("YT_MEDIA_DIR", "media_out"))
 MEDIA_MAP_FILE = MEDIA_OUT_DIR / "_video_id_to_url.tsv"
 
@@ -53,16 +49,23 @@ def is_recent(entry) -> bool:
         return True
 
 
-def pick_vtt(tmp_dir: Path) -> Path | None:
-    vtt_files = list(tmp_dir.glob("*.vtt"))
-    if not vtt_files:
+def pick_subtitle_file(tmp_dir: Path) -> Path | None:
+    """Find the best subtitle file yt-dlp wrote, preferring non-English vtt,
+    then non-English ass, then falling back to whatever English version
+    exists. We don't force --sub-format vtt anymore since some channels only
+    have .ass subtitles that yt-dlp can't always convert cleanly — better to
+    grab whatever format is actually available and clean it ourselves."""
+    candidates = list(tmp_dir.glob("*.vtt")) + list(tmp_dir.glob("*.ass"))
+    if not candidates:
         return None
-    non_en = [
-        f for f in vtt_files
-        if not re.search(r"\.(en|en-orig|en-US|en-GB)[.-]", f.name)
-        and not f.name.endswith(".en.vtt")
-    ]
-    return non_en[0] if non_en else vtt_files[0]
+
+    def is_english(f: Path) -> bool:
+        return bool(re.search(r"\.(en|en-orig|en-US|en-GB)[.-]", f.name)) or f.name.endswith((".en.vtt", ".en.ass"))
+
+    non_en = [f for f in candidates if not is_english(f)]
+    pool = non_en or candidates
+    vtt_pool = [f for f in pool if f.suffix == ".vtt"]
+    return vtt_pool[0] if vtt_pool else pool[0]
 
 
 def download_subtitle(video_url: str) -> str | None:
@@ -71,15 +74,39 @@ def download_subtitle(video_url: str) -> str | None:
             "yt-dlp", "--skip-download",
             "--write-sub", "--write-auto-sub",
             "--sub-langs", "all,-live_chat",
-            "--sub-format", "vtt",
             "--output", f"{tmp}/%(id)s",
             video_url,
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         if result.returncode != 0:
             return None
-        chosen = pick_vtt(Path(tmp))
-        return chosen.read_text("utf-8", errors="ignore") if chosen else None
+        chosen = pick_subtitle_file(Path(tmp))
+        if not chosen:
+            return None
+        raw = chosen.read_text("utf-8", errors="ignore")
+        return clean_ass(raw) if chosen.suffix == ".ass" else clean_vtt(raw)
+
+
+def clean_ass(ass: str) -> str:
+    """Extract spoken text from an .ass subtitle file: keep only Dialogue
+    lines, drop timing/style/effect fields, strip {\\...} override tags and
+    line-break markers, dedupe repeated lines (common with karaoke-style
+    overlapping dialogue events)."""
+    seen: set[str] = set()
+    lines: list[str] = []
+    for raw_line in ass.splitlines():
+        if not raw_line.startswith("Dialogue:"):
+            continue
+        fields = raw_line.split(",", 9)
+        if len(fields) < 10:
+            continue
+        text = fields[9]
+        text = re.sub(r"\{[^}]*\}", "", text)      # {\an8}, {\pos(...)}, etc.
+        text = text.replace("\\N", " ").replace("\\n", " ").strip()
+        if text and text not in seen:
+            seen.add(text)
+            lines.append(text)
+    return " ".join(lines)
 
 
 def clean_vtt(vtt: str) -> str:
@@ -146,15 +173,14 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
         video_id = m.group(1) if m else ""
 
     subtitle: str | None = None
-    media_paths: dict[str, Path] = {}  # kind -> path, e.g. {"video": ..., "audio": ...}
+    media_paths: dict[str, Path] = {}
 
     want_subtitle = "subtitle" in modes or "mixed" in modes
     want_video    = "video" in modes
     want_audio    = "audio" in modes
 
     if want_subtitle:
-        vtt      = download_subtitle(video_url)
-        subtitle = clean_vtt(vtt) if vtt else None
+        subtitle = download_subtitle(video_url)  # already cleaned (vtt or ass)
 
     if want_video:
         p = download_media(video_url, video_id, kind="video")
@@ -166,11 +192,13 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
             media_paths["audio"] = p
 
     if "mixed" in modes and not subtitle and not media_paths:
-        # Subtitles came back empty and no explicit video/audio was requested —
-        # fall back to a low-res video so the story isn't lost entirely.
-        p = download_media(video_url, video_id, kind="video")
+        p = download_media(video_url, video_id, kind="audio")
         if p:
-            media_paths["video"] = p
+            media_paths["audio"] = p
+        else:
+            p = download_media(video_url, video_id, kind="video")
+            if p:
+                media_paths["video"] = p
 
     for kind, path in media_paths.items():
         MEDIA_MAP_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -182,10 +210,7 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
         channel_id=channel_id, channel_name=channel_name,
         feed_key=feed_key, title=entry.get("title", ""),
         subtitle=subtitle, published_at=entry.get("published", r),
-        mode=",".join(modes),
-        # media_url is filled in later by the workflow, after the GitHub
-        # Release upload step, via set_yt_media_url() — one call per kind,
-        # stored as JSON in the media_url column (see db_utils.set_yt_media_url)
+        mode=",".join(modes)
     )
     status_bits = []
     if subtitle:

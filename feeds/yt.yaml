@@ -3,19 +3,29 @@
 # channel_id: fill from youtube.com/channel/<id> or youtube.com/@handle page
 # All entries go to youtube.db, issue: yt_weekly
 #
-# mode: how much of this channel's content is actually carried by subtitles.
-#   subtitle — subtitles alone are high-signal (talking-head/commentary channels
-#              like 马司库, VEXILLA). Keep current behavior: download + clean subs only.
-#   video    — subtitles are useless (ASMR, football/sports tutorials, music).
-#              Subtitles are skipped entirely; render_yt should offer a
-#              low-res (720p or lower, vp09/av01) video via GitHub Release instead.
-#   mixed    — subtitles help but don't tell the whole story (most channels).
-#              Default when `mode` is omitted. Subtitles are downloaded as today;
-#              a low-res video release can optionally be added later per-video.
-#   audio    — video track adds nothing; only the audio matters (podcasts,
-#              interviews, music-only channels without visuals).
-# `mode: FILL_ME` marks a channel not yet classified — ingest_youtube falls back
-# to `mixed` (today's behavior) until it is filled in.
+# mode: a LIST of what to fetch for this channel. Combine as many as apply —
+#   e.g. a channel needing both video and audio separately: [video, audio].
+#   A channel that needs everything: [subtitle, video, audio].
+#
+#   subtitle — subtitles alone are high-signal (talking-head/commentary/
+#              teaching-by-speech channels). Downloads + cleans subtitles.
+#              Accepts both .vtt and .ass caption files.
+#   video    — download a low-res (720p or lower, vp09/av01) video-only file,
+#              uploaded later as a GitHub Release asset (visuals matter:
+#              demos, tutorials with on-screen steps, pets, looks/vibe-driven
+#              content).
+#   audio    — download audio-only (m4a/opus), also uploaded as a Release asset.
+#              Use alongside `video` when both are independently useful, or
+#              alone when the video track adds nothing and tone/voice matters
+#              more than a searchable transcript.
+#   mixed    — shorthand for "subtitles help but don't tell the whole story":
+#              tries subtitles first; if none are found, falls back to audio
+#              (listening > watching by default); if even audio isn't
+#              available, falls back to a low-res video as a last resort.
+#              This is the DEFAULT when `mode` is omitted or `[FILL_ME]`.
+#
+# `mode: [FILL_ME]` marks a channel not yet classified — ingest_youtube falls
+#                   back to `[mixed]` until it is filled in.
 
 feeds:
 
@@ -29,41 +39,62 @@ feeds:
       - name: 极客湾
         channel_id: UCeUJO1H3TEXu2syfAAPjYKQ
         mode: [audio, video]
+      - name: 司波图
+        channel_id: UCUWUYyNh8KFS7E6-Q0ajBzQ
+        mode: [audio, video]
       - name: IT咖啡馆
         channel_id: UCXLV-KfDQAFUJ_as9H1Lfbw
         mode: [mixed]
-      - name: 新知
-        channel_id: UChoR3_5ZTj3TS12ub1GHw3Q
-      - name: 程序媛小白
-        channel_id: UCc0K-eBV3blWsg2PWlrbdBg
-      - name: 我是阿众
-        channel_id: UC4GFL56UB1AmyCEvzqpvSAw
-      - name: 爱分享
-        channel_id: UCgV1t5fHFvAVPyprEWvuIzg
-      - name: 不良林
-        channel_id: UCbCCUH8S3yhlm7__rhxR2QQ
-      - name: 司波图
-        channel_id: UCUWUYyNh8KFS7E6-Q0ajBzQ
-      - name: 影享者
-        channel_id: UCR7Up1tdiE7lu9xjA-OMltA
-      - name: 科技猎奇
-        channel_id: UCiZ-vPsF_30ZyEBRfOYnsdg
-      - name: 科技共享
-        channel_id: UCQoagx4VHBw3HkAyzvKEEBA
-      - name: 数码解码
-        channel_id: UCffPrldpcuZNeYbzeZ8udxg
       - name: AI 探索与发现
         channel_id: UC0k8npj7VdHzN2L_-JSaPyA
+        mode: [audio, video]
       - name: ami.moment
         channel_id: UCGs_cktFPCgN8ggJJVon84g
+        mode: [audio, video]
+
+  - key: yt.daily.gfw
+    db: youtube
+    issue: yt_weekly
+    sources:
+      - name: 新知
+        channel_id: UChoR3_5ZTj3TS12ub1GHw3Q
+        mode: [subtitle, video]
+      - name: 程序媛小白
+        channel_id: UCc0K-eBV3blWsg2PWlrbdBg
+        mode: [subtitle, video]
+      - name: 我是阿众
+        channel_id: UC4GFL56UB1AmyCEvzqpvSAw
+        mode: [subtitle, video]
+      - name: 爱分享
+        channel_id: UCgV1t5fHFvAVPyprEWvuIzg
+        mode: [subtitle, video]
+      - name: 不良林
+        channel_id: UCbCCUH8S3yhlm7__rhxR2QQ
+        mode: [subtitle, video]
+      - name: 影享者
+        channel_id: UCR7Up1tdiE7lu9xjA-OMltA
+        mode: [subtitle, video]
+      - name: 科技猎奇
+        channel_id: UCiZ-vPsF_30ZyEBRfOYnsdg
+        mode: [subtitle, video]
+      - name: 科技共享
+        channel_id: UCQoagx4VHBw3HkAyzvKEEBA
+        mode: [subtitle, video]
+      - name: 数码解码
+        channel_id: UCffPrldpcuZNeYbzeZ8udxg
+        mode: [subtitle, video]
       - name: 疯狂赚钱实验室
         channel_id: UC9vwELYqSedcjU50D7IiYkw
+        mode: [subtitle, video]
       - name: 艾特科技
         channel_id: UCJ7O8Cf9lJnBxnoc2pl2_uA
+        mode: [subtitle, video]
       - name: 墙后立方体
         channel_id: UCUXv8OhSFFQRJGg_dO55XrQ
+        mode: [subtitle, video]
       - name: 边境中文说
         channel_id: UCykdQvoM9Fw2nO-58iEsvrw
+        mode: [subtitle, video]
 
   - key: yt.daily.ios
     db: youtube
@@ -199,9 +230,9 @@ feeds:
       - name: Jason-老湿
         channel_id: UC5BC7UNoExVELezGVlV_bYg
         mode: [audio]
-        mode: audio
       - name: 三度c
         channel_id: UCIlv2zQgmulRhEa1yCGLhpg
+        mode: [video, audio]
       - name: Funny Lulu 2.0
         channel_id: UC2pXkPVfSKPFViEIvsGNuMA
         mode: [video, audio]
@@ -216,6 +247,7 @@ feeds:
         mode: [video, audio]
       - name: 自说自话的总裁
         channel_id: UCgo_-fjJxnLwwwq5dSY72rg
+        mode: [audio]
 
   - key: yt.zen.psychology
     db: youtube
@@ -253,13 +285,13 @@ feeds:
         channel_id: UC8gKBuEj6LZSz42TFvRILAg
         mode: [video, audio]
       - name: 凯哥带你撩妹
-        channel_id: FILL_ME
+        channel_id: UCtiFLElUzYjbkPTSGqBn9IQ
         mode: [subtitle]
       - name: 凯南教聊天
         channel_id: UCJ5B2TYnDep7ToycB87AoOA
         mode: [subtitle]
       - name: 凯哥教撩妹
-        channel_id: FILL_ME
+        channel_id: UCdw6TpsPcl2vgYdVyv_9CUg
         mode: [subtitle]
       - name: 凯哥带你脱单
         channel_id: UCjD4XGxZRvCusBrYUUQLeEw
