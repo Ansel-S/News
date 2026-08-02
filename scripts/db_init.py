@@ -133,6 +133,19 @@ SCHEMAS: dict[str, list[str]] = {
             created_at TEXT NOT NULL
         )""",
     ],
+    "handled": [
+        """CREATE TABLE IF NOT EXISTS requests (
+            uuid         TEXT PRIMARY KEY,
+            url          TEXT NOT NULL,
+            first_seen   TEXT NOT NULL,
+            attempts     INTEGER NOT NULL DEFAULT 0,
+            last_attempt TEXT,
+            status       TEXT NOT NULL DEFAULT 'pending',
+            error        TEXT,
+            filename     TEXT,
+            asset_url    TEXT
+        )""",
+    ],
 }
 
 # dive / zen / paper share identical schema with core
