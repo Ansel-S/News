@@ -4,13 +4,13 @@ Fetches today's top stories with score > 350. No RSS.
 """
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, UTC
 
 import requests
 
 from config import hn_config
 from db_utils import hn_exists, insert_hn
+from ingest_base import run_parallel
 
 HN_TOP  = "https://hacker-news.firebaseio.com/v0/topstories.json"
 HN_ITEM = "https://hacker-news.firebaseio.com/v0/item/{}.json"
@@ -29,19 +29,17 @@ def main() -> None:
     resp.raise_for_status()
     ids = resp.json()[:top_n]
 
-    def fetch(hn_id: int) -> dict | None:
+    def fetch_and_process(hn_id: int) -> None:
         try:
             r = requests.get(HN_ITEM.format(hn_id), timeout=10)
             r.raise_for_status()
-            return r.json()
+            data = r.json()
         except Exception:
-            return None
-
-    def process(data: dict) -> None:
+            return
         if not data:
             return
-        hn_id = str(data.get("id", ""))
-        if not hn_id or hn_exists(hn_id):
+        item_id = str(data.get("id", ""))
+        if not item_id or hn_exists(item_id):
             return
         if data.get("score", 0) < min_score:
             return
@@ -50,7 +48,7 @@ def main() -> None:
             return
         created_at = datetime.fromtimestamp(unix_time, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         insert_hn(
-            hn_id=hn_id,
+            hn_id=item_id,
             title=data.get("title", ""),
             url=data.get("url"),
             score=data["score"],
@@ -60,15 +58,8 @@ def main() -> None:
         )
         print(f"  [{data['score']}] {data.get('title', '')[:70]}")
 
-    with ThreadPoolExecutor(max_workers=workers) as exe:
-        futures = {exe.submit(fetch, i): i for i in ids}
-        for future in as_completed(futures):
-            try:
-                data = future.result()
-                if data:
-                    process(data)
-            except Exception as ex:
-                print(f"[hn error] {futures[future]}: {ex}")
+    tasks = [dict(hn_id=i) for i in ids]
+    run_parallel(tasks, fetch_and_process, max_workers=workers, label_key="hn_id")
 
     print("ingest_hn: done")
 
