@@ -16,7 +16,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from config import DAILY_ORDER
-from db_utils import get_unpushed, get_unpushed_hn, mark_pushed, mark_pushed_hn, run_id as new_run_id
+from db_utils import get_unpushed, mark_pushed, run_id as new_run_id
 from render_base import (
     fmt_date, email_shell, section_heading, excerpt,
     block_title_excerpt, block_repo_card, block_hn, chart_table,
@@ -97,7 +97,7 @@ def render_hn_section(hn_rows) -> str:
              f'<ul style="list-style:none;margin:0;padding:0">']
     for row in hn_rows:
         parts.append(block_hn(
-            title=row["title"], url=row["url"] or row["source_id"],
+            title=row["title"], url=row["external_url"] or row["source_id"],
             score=row["score"], by=row["by"] or "",
             descendants=row["descendants"] or 0, hn_url=row["source_id"],
         ))
@@ -108,7 +108,7 @@ def render_hn_section(hn_rows) -> str:
 def main() -> None:
     issue_id = new_run_id()
     rss_rows = get_unpushed("core", ISSUE_TYPE, exclude_feed_prefix="rss.extra.")
-    hn_rows  = get_unpushed_hn(ISSUE_TYPE)
+    hn_rows  = get_unpushed("hn", ISSUE_TYPE, table="hn_items", order_by="score DESC")
 
     rss_html, rss_count, rss_minutes, full_rows = render_rss_sections(rss_rows)
     hn_html  = render_hn_section(hn_rows)
@@ -139,7 +139,7 @@ def main() -> None:
     for row in rss_rows:
         mark_pushed("core", row["id"], ISSUE_TYPE, issue_id)
     for row in hn_rows:
-        mark_pushed_hn(row["id"], ISSUE_TYPE, issue_id)
+        mark_pushed("hn", row["id"], ISSUE_TYPE, issue_id)
 
     zip_note = f", {zip_file_count} full articles → {OUT_ZIP.name}" if zip_file_count else ""
     print(f"render_daily: {rss_count} RSS + {len(hn_rows)} HN{zip_note} → {OUT_HTML.name}")
