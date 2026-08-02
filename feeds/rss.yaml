@@ -226,6 +226,9 @@ feeds:
       - name: ifanr
         url: https://www.ifanr.com/feed
         display_mode: title_excerpt
+      - name: Innei
+        url: https://innei.in/feed
+        display_mode: title_excerpt
       - name: Bubbles Town
         url: https://bubbles.town/weekly/feed
         display_mode: full
