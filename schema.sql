@@ -202,3 +202,17 @@ CREATE TABLE IF NOT EXISTS errors (
     message    TEXT,
     created_at TEXT NOT NULL
 );
+
+-- handled.db — backs scripts/email_download.py. Not items-shaped: a
+-- "request" is a one-off download task keyed by UUID, not a feed item.
+CREATE TABLE IF NOT EXISTS requests (
+    uuid         TEXT PRIMARY KEY,
+    url          TEXT NOT NULL,
+    first_seen   TEXT NOT NULL,
+    attempts     INTEGER NOT NULL DEFAULT 0,
+    last_attempt TEXT,
+    status       TEXT NOT NULL DEFAULT 'pending',
+    error        TEXT,
+    filename     TEXT,
+    asset_url    TEXT
+);
