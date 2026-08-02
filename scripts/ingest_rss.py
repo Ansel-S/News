@@ -13,8 +13,7 @@ from __future__ import annotations
 import os
 import re
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, UTC
 
 import feedparser
 import requests
@@ -26,6 +25,7 @@ from db_utils import (
     item_exists, insert_item, insert_error,
     report_exists, insert_report,
 )
+from ingest_base import is_recent as _is_recent, run_parallel
 
 LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "8"))
 MAX_WORKERS   = int(os.getenv("RSS_WORKERS", "8"))
@@ -37,13 +37,7 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; Dewsletter/1.0)"}
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def is_recent(entry) -> bool:
-    pub = entry.get("published_parsed")
-    if pub is None:
-        return True
-    try:
-        return datetime(*pub[:6], tzinfo=UTC) >= datetime.now(UTC) - timedelta(days=LOOKBACK_DAYS)
-    except Exception:
-        return True
+    return _is_recent(entry, lookback_days=LOOKBACK_DAYS)
 
 
 def fetch_text(url: str) -> str | None:
@@ -252,22 +246,11 @@ def main(target_dbs: list[str] | None = None) -> None:
                 # e.g. TLDR: fetched live in render_daily, never persisted (time-sensitive content)
                 continue
             display_mode = src.get("display_mode") or group_mode or "title_excerpt"
-            tasks.append(dict(url=url, db=db, feed_key=feed_key,
-                              source_name=src["name"], display_mode=display_mode))
+            tasks.append(dict(feed_url=url, db=db, feed_key=feed_key,
+                              source_name=src["name"], display_mode=display_mode, r=r))
 
     print(f"ingest_rss: {len(tasks)} feeds, {MAX_WORKERS} workers")
-
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as exe:
-        futures = {
-            exe.submit(fetch_feed, t["url"], db=t["db"], feed_key=t["feed_key"],
-                       source_name=t["source_name"], display_mode=t["display_mode"], r=r): t["url"]
-            for t in tasks
-        }
-        for future in as_completed(futures):
-            try:
-                future.result()
-            except Exception as ex:
-                print(f"[unhandled] {futures[future]}: {ex}")
+    run_parallel(tasks, fetch_feed, max_workers=MAX_WORKERS, label_key="feed_url")
 
 
 if __name__ == "__main__":

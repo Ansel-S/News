@@ -1,8 +1,16 @@
 -- schema.sql
 -- Dewsletter — all database schemas
 -- Run via db_init.py which selects the relevant tables per db
+--
+-- DESIGN: every db's main table is called `items` with the SAME core columns
+-- (id, source_id, feed_key, source_name, display_mode, title, content,
+-- created_at, ingested_at). This is what lets db_utils.py expose ONE set of
+-- functions -- get_unpushed(db, issue_type), mark_pushed(db, id, ...) -- for
+-- every db, instead of a _yt/_reports/_hn variant per db. Each db then adds
+-- a few of its own extra columns for whatever it uniquely needs (video_id,
+-- pdf_data, score, etc). `push_log` and `errors` are identical everywhere.
 
--- ── core.db / dive.db / zen.db / paper.db ───────────────────────────────────
+-- -- core.db / dive.db / zen.db / paper.db --------------------------------
 -- paper.db stores title + abstract (content column) + original link
 -- full text is NOT stored for papers; abstract only
 
@@ -22,7 +30,7 @@ CREATE TABLE IF NOT EXISTS items (
 
 CREATE TABLE IF NOT EXISTS push_log (
     item_id    TEXT NOT NULL,
-    issue_type TEXT NOT NULL,        -- daily | dive_weekly | zen_weekly | paper_weekly | report_monthly | yt_weekly
+    issue_type TEXT NOT NULL,        -- daily | extra_daily | dive_weekly | zen_weekly | paper_weekly | report_monthly | yt_weekly
     issue_id   TEXT NOT NULL,        -- run_id of the sending workflow
     pushed_at  TEXT NOT NULL,
     PRIMARY KEY (item_id, issue_type)
@@ -38,20 +46,27 @@ CREATE TABLE IF NOT EXISTS errors (
     created_at TEXT NOT NULL
 );
 
--- ── report.db ────────────────────────────────────────────────────────────────
--- Stores the PDF binary as a blob alongside metadata.
--- title_only shown in email; PDF attached to report_monthly issue.
+-- -- report.db ---------------------------------------------------------------
+-- Same `items` shape as above, plus two report-specific columns:
+--   pdf_url  -- direct PDF link if found
+--   pdf_data -- raw PDF bytes (blob)
+-- display_mode is always 'title_only' for reports; content holds a short
+-- description if available (may be empty -- the PDF itself is the payload).
 
-CREATE TABLE IF NOT EXISTS reports (
-    id          TEXT PRIMARY KEY,    -- sha256(source_id)
-    source_id   TEXT NOT NULL,       -- original URL
-    feed_key    TEXT NOT NULL,
-    source_name TEXT NOT NULL,
-    title       TEXT,
-    pdf_url     TEXT,                -- direct PDF link if found
-    pdf_data    BLOB,                -- raw PDF bytes
-    created_at  TEXT,
-    ingested_at TEXT NOT NULL
+CREATE TABLE IF NOT EXISTS report_items (
+    id           TEXT PRIMARY KEY,
+    source_id    TEXT NOT NULL,
+    feed_key     TEXT NOT NULL,
+    source_name  TEXT NOT NULL,
+    display_mode TEXT NOT NULL DEFAULT 'title_only',
+    title        TEXT,
+    content      TEXT,
+    created_at   TEXT,
+    ingested_at  TEXT NOT NULL,
+    word_count   INTEGER DEFAULT 0,
+    read_minutes INTEGER DEFAULT 0,
+    pdf_url      TEXT,
+    pdf_data     BLOB
 );
 
 CREATE TABLE IF NOT EXISTS push_log (
@@ -72,18 +87,28 @@ CREATE TABLE IF NOT EXISTS errors (
     created_at TEXT NOT NULL
 );
 
--- ── hn.db ────────────────────────────────────────────────────────────────────
+-- -- hn.db ---------------------------------------------------------------
+-- Same `items` shape, plus three HN-specific columns: score, by, descendants.
+-- content is left empty (HN items are title_only); source_id doubles as the
+-- HN discussion-page URL, with the external link (if any) in a dedicated
+-- `external_url` column instead of overloading source_id/content.
 
 CREATE TABLE IF NOT EXISTS hn_items (
-    id          TEXT PRIMARY KEY,    -- HN item id as text
-    source_id   TEXT NOT NULL,       -- https://news.ycombinator.com/item?id=<id>
-    title       TEXT NOT NULL,
-    url         TEXT,                -- external link (null for Ask HN etc.)
-    score       INTEGER NOT NULL,
-    by          TEXT,
-    descendants INTEGER DEFAULT 0,   -- comment count
-    created_at  TEXT NOT NULL,       -- ISO8601
-    ingested_at TEXT NOT NULL
+    id           TEXT PRIMARY KEY,   -- HN item id as text
+    source_id    TEXT NOT NULL,      -- https://news.ycombinator.com/item?id=<id>
+    feed_key     TEXT NOT NULL DEFAULT 'hn',
+    source_name  TEXT NOT NULL DEFAULT 'Hacker News',
+    display_mode TEXT NOT NULL DEFAULT 'title_only',
+    title        TEXT NOT NULL,
+    content      TEXT,
+    created_at   TEXT NOT NULL,      -- ISO8601
+    ingested_at  TEXT NOT NULL,
+    word_count   INTEGER DEFAULT 0,
+    read_minutes INTEGER DEFAULT 0,
+    external_url TEXT,               -- external link (null for Ask HN etc.)
+    score        INTEGER NOT NULL,
+    by           TEXT,
+    descendants  INTEGER DEFAULT 0   -- comment count
 );
 
 CREATE TABLE IF NOT EXISTS push_log (
@@ -94,54 +119,61 @@ CREATE TABLE IF NOT EXISTS push_log (
     PRIMARY KEY (item_id, issue_type)
 );
 
--- ── youtube.db ───────────────────────────────────────────────────────────────
+-- -- youtube.db ---------------------------------------------------------------
 -- Split into tables to keep the db small and each reader query targeted:
---   yt_seen        — dedup only, every processed video regardless of mode/content.
---                    Tiny rows (a hash + id + timestamp), safe to grow unbounded.
---   yt_items       — videos that produced subtitle text. Full content, read by
---                    render_yt.py for the weekly email body + subtitle zip.
---   yt_media_items — videos from video/audio-only channels with NO subtitle
---                    text — still need a title + download-link row in the
---                    weekly email, just without bloating yt_items with empty
---                    content. Disjoint from yt_items (a video is in exactly
---                    one of the two, never both).
---   yt_media       — one row per (video, kind) low-res video/audio Release
---                    upload; joined against by video_id from either table above.
+--   yt_seen  -- dedup only, every processed video regardless of mode/content.
+--              Tiny rows (a hash + id + timestamp), safe to grow unbounded.
+--              NOT shaped like `items` -- it's a pure internal dedup index,
+--              never rendered, so there's nothing to gain from matching the
+--              items shape here.
+--   yt_items -- videos that produced subtitle text (content = subtitle text).
+--              Same `items` shape as core/dive/zen/paper, plus video_id and
+--              channel_id. Read by render_yt.py for the weekly email + zip.
+--   yt_media_items -- videos from video/audio-only channels with NO subtitle
+--              (content is NULL/empty here) -- still need a title +
+--              download-link row in the weekly email. Same `items` shape +
+--              video_id/channel_id, disjoint from yt_items.
+--   yt_media -- one row per (video, kind) low-res video/audio Release
+--              upload; joined by video_id from either table above.
 
 CREATE TABLE IF NOT EXISTS yt_seen (
-    id          TEXT PRIMARY KEY,   -- sha256(video_url), same hash as yt_items.id
+    id          TEXT PRIMARY KEY,   -- sha256(video_url)
     video_url   TEXT NOT NULL,
     video_id    TEXT NOT NULL,
     ingested_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS yt_items (
-    id           TEXT PRIMARY KEY,   -- sha256(video_url)
-    video_url    TEXT NOT NULL,
+    id           TEXT PRIMARY KEY,   -- sha256(source_id)
+    source_id    TEXT NOT NULL,      -- video_url (dedup key, matches items convention)
+    feed_key     TEXT NOT NULL,      -- e.g. "yt.daily.tech"
+    source_name  TEXT NOT NULL,      -- channel_name
+    display_mode TEXT NOT NULL DEFAULT 'title_excerpt',
+    title        TEXT,
+    content      TEXT NOT NULL,      -- cleaned subtitle text (always non-empty here)
+    created_at   TEXT,               -- published_at
+    ingested_at  TEXT NOT NULL,
+    word_count   INTEGER DEFAULT 0,
+    read_minutes INTEGER DEFAULT 0,
     video_id     TEXT NOT NULL,
     channel_id   TEXT NOT NULL,
-    channel_name TEXT NOT NULL,
-    feed_key     TEXT NOT NULL,      -- e.g. "yt.daily.tech"
-    title        TEXT,
-    subtitle     TEXT NOT NULL,      -- cleaned subtitle text (always non-empty here)
-    published_at TEXT,
-    ingested_at  TEXT NOT NULL,
     mode         TEXT DEFAULT 'mixed'  -- subtitle | video | mixed | audio | comma-joined combo
 );
 
--- Videos from video/audio-only channels (no subtitle text at all) still need
--- to show up in the weekly email as a title + download-link row, without
--- bloating yt_items with an empty/NOT-NULL-violating subtitle column.
 CREATE TABLE IF NOT EXISTS yt_media_items (
-    id           TEXT PRIMARY KEY,   -- sha256(video_url), same hash scheme as yt_items
-    video_url    TEXT NOT NULL,
+    id           TEXT PRIMARY KEY,   -- sha256(source_id), same hash scheme as yt_items
+    source_id    TEXT NOT NULL,      -- video_url
+    feed_key     TEXT NOT NULL,
+    source_name  TEXT NOT NULL,      -- channel_name
+    display_mode TEXT NOT NULL DEFAULT 'title_only',
+    title        TEXT,
+    content      TEXT,               -- always NULL/empty here -- no subtitle text
+    created_at   TEXT,               -- published_at
+    ingested_at  TEXT NOT NULL,
+    word_count   INTEGER DEFAULT 0,
+    read_minutes INTEGER DEFAULT 0,
     video_id     TEXT NOT NULL,
     channel_id   TEXT NOT NULL,
-    channel_name TEXT NOT NULL,
-    feed_key     TEXT NOT NULL,
-    title        TEXT,
-    published_at TEXT,
-    ingested_at  TEXT NOT NULL,
     mode         TEXT DEFAULT 'video'
 );
 

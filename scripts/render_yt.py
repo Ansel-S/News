@@ -7,17 +7,17 @@ from __future__ import annotations
 import html as _html
 from collections import defaultdict
 from pathlib import Path
-from db_utils import (
-    get_unpushed_yt, get_unpushed_yt_media, mark_pushed_yt, get_yt_media,
-    run_id as new_run_id,
-)
+from db_utils import get_unpushed, mark_pushed, get_yt_media, run_id as new_run_id
 from config import db_path
-from render_base import fmt_date, email_shell, section_heading, MUTED, TEXT, ACCENT, BORDER, MONO
-import render_yt_markdown
+from render_base import (
+    fmt_date, email_shell, section_heading, export_full_articles_zip,
+    MUTED, TEXT, ACCENT, BORDER, MONO,
+)
 
 ROOT       = Path(__file__).resolve().parent.parent
 OUT_HTML   = ROOT / "out_yt.html"
 OUT_SUBJ   = ROOT / "out_yt_subject.txt"
+OUT_ZIP    = ROOT / "out_yt.zip"
 ISSUE_TYPE = "yt_weekly"
 
 SECTION_LABEL: dict[str, str] = {
@@ -38,12 +38,11 @@ SECTION_ORDER = list(SECTION_LABEL)
 
 def video_row(row) -> str:
     title    = _html.escape(row["title"] or "(untitled)")
-    url      = _html.escape(row["video_url"])
-    ch       = _html.escape(row["channel_name"])
-    pub      = (row["published_at"] or "")[:10]
-    # yt_media_items rows have no `subtitle` column at all (no subtitle text
-    # was ever found for them) — .keys() check avoids a KeyError there.
-    has_sub  = "subtitle" in row.keys() and bool(row["subtitle"])
+    url      = _html.escape(row["source_id"])
+    ch       = _html.escape(row["source_name"])
+    pub      = (row["created_at"] or "")[:10]
+    # yt_media_items rows have content=NULL (no subtitle text was ever found)
+    has_sub  = bool(row["content"])
     media_links = get_yt_media(row["video_id"])
 
     badges = []
@@ -77,8 +76,8 @@ def video_row(row) -> str:
 
 def main() -> None:
     issue_id = new_run_id()
-    sub_rows   = get_unpushed_yt(ISSUE_TYPE)
-    media_rows = get_unpushed_yt_media(ISSUE_TYPE)
+    sub_rows   = get_unpushed("youtube", ISSUE_TYPE, table="yt_items")
+    media_rows = get_unpushed("youtube", ISSUE_TYPE, table="yt_media_items")
     rows = list(sub_rows) + list(media_rows)
     if not rows:
         print("render_yt: nothing to send")
@@ -96,7 +95,9 @@ def main() -> None:
 
     # Only yt_items rows have subtitle text to export; yt_media_items rows
     # are title + download-link only and are shown inline via video_row().
-    zip_count = render_yt_markdown.write_and_zip(sub_rows)
+    # yt_items already uses the standard items field names (source_id,
+    # source_name, content, created_at), so no custom key mapping needed.
+    zip_count = export_full_articles_zip(sub_rows, OUT_ZIP) if sub_rows else 0
 
     parts = [
         f'<p style="margin:0 0 32px;font-size:13px;color:{MUTED}">'
@@ -127,7 +128,7 @@ def main() -> None:
     OUT_SUBJ.write_text(f"Dewsletter YouTube · {date_str} · {len(rows)} videos")
 
     for row in rows:
-        mark_pushed_yt(row["id"], ISSUE_TYPE, issue_id)
+        mark_pushed("youtube", row["id"], ISSUE_TYPE, issue_id)
     print(f"render_yt: {len(rows)} videos ({len(sub_rows)} subtitle + "
           f"{len(media_rows)} media-only) → {OUT_HTML.name}")
 

@@ -1,5 +1,15 @@
 """
 db_utils.py — Shared database read/write utilities for all databases
+
+DESIGN: every db's main table shares the `items` shape (id, source_id,
+feed_key, source_name, display_mode, title, content, created_at,
+ingested_at, word_count, read_minutes) — see schema.sql. That means one
+generic set of functions (item_exists / insert_item / get_unpushed /
+mark_pushed) covers core.db, dive.db, zen.db, paper.db, report.db, hn.db,
+and youtube.db's yt_items / yt_media_items, just by passing a different
+`table` name. Each db then gets a small number of extra functions only for
+what's genuinely unique to it: report.db's PDF blob, hn.db's score/by/
+descendants, youtube.db's dedup table + media-download-link table.
 """
 from __future__ import annotations
 import hashlib
@@ -39,12 +49,14 @@ def _conn(db: str) -> sqlite3.Connection:
     return c
 
 
-# ── Generic items table (core / dive / zen / paper) ──────────────────────────
+# ── Generic items table (core / dive / zen / paper / report / hn / youtube) ──
+# `table` defaults to "items" (core/dive/zen/paper); pass e.g. "hn_items",
+# "report_items", "yt_items", "yt_media_items" for the others.
 
-def item_exists(db: str, url: str) -> bool:
+def item_exists(db: str, source_id: str, *, table: str = "items") -> bool:
     with _conn(db) as c:
         return c.execute(
-            "SELECT 1 FROM items WHERE source_id=? LIMIT 1", (url,)
+            f"SELECT 1 FROM {table} WHERE source_id=? LIMIT 1", (source_id,)
         ).fetchone() is not None
 
 
@@ -53,20 +65,37 @@ def insert_item(
     source_id: str,
     feed_key: str,
     source_name: str,
-    display_mode: str,
     title: str,
-    content: str,
+    content: str | None,
     created_at: str,
+    display_mode: str = "title_excerpt",
+    table: str = "items",
+    id_override: str | None = None,
+    extra_columns: dict | None = None,
 ) -> None:
+    """Insert one row into any items-shaped table. `id_override` lets callers
+    use a different primary key than sha256(source_id) (e.g. hn.db uses the
+    raw HN item id). `extra_columns` adds db-specific columns beyond the
+    common items shape (e.g. {"score": 5, "by": "alice"} for hn_items, or
+    {"video_id": "...", "channel_id": "..."} for yt_items)."""
     wc, rm = estimate_read(content)
+    row_id = id_override or item_hash(source_id)
+    extra_columns = extra_columns or {}
+
+    cols   = ["id", "source_id", "feed_key", "source_name", "display_mode",
+              "title", "content", "created_at", "ingested_at", "word_count", "read_minutes"]
+    values = [row_id, source_id, feed_key, source_name, display_mode,
+              title, content, created_at, now_iso(), wc, rm]
+    for k, v in extra_columns.items():
+        cols.append(k)
+        values.append(v)
+
+    placeholders = ",".join("?" * len(cols))
+    col_list = ",".join(cols)
     with _conn(db) as c:
         c.execute(
-            """INSERT OR IGNORE INTO items
-               (id, source_id, feed_key, source_name, display_mode,
-                title, content, created_at, ingested_at, word_count, read_minutes)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-            (item_hash(source_id), source_id, feed_key, source_name,
-             display_mode, title, content, created_at, now_iso(), wc, rm),
+            f"INSERT OR IGNORE INTO {table} ({col_list}) VALUES ({placeholders})",
+            values,
         )
 
 
@@ -89,16 +118,24 @@ def mark_pushed(db: str, item_id: str, issue_type: str, issue_id: str) -> None:
         )
 
 
-def get_unpushed(db: str, issue_type: str, *, exclude_feed_prefix: str | None = None) -> list[sqlite3.Row]:
-    """All items not yet sent in this issue type, newest first.
+def get_unpushed(
+    db: str, issue_type: str, *,
+    table: str = "items",
+    exclude_feed_prefix: str | None = None,
+    order_by: str = "created_at DESC",
+) -> list[sqlite3.Row]:
+    """All items not yet sent in this issue type.
 
+    `table`: which items-shaped table to read (default "items").
     `exclude_feed_prefix`: skip rows whose feed_key starts with this prefix.
-    Needed because get_unpushed filters by (db, issue_type) — rows sharing
-    the same db but tagged with a different issue_type (e.g. "extra_daily"
-    rows living in core.db alongside "daily" rows) would otherwise still be
-    picked up here as long as they've never been pushed under THIS issue_type.
+    Needed because this filters by (db, issue_type) alone — rows sharing the
+    same db/table but tagged for a different issue_type (e.g. "extra_daily"
+    rows living in core.db's `items` alongside "daily" rows) would otherwise
+    still be picked up here as long as they've never been pushed under THIS
+    issue_type.
+    `order_by`: override sort order (e.g. "score DESC" for hn_items).
     """
-    query = """SELECT i.* FROM items i
+    query = f"""SELECT i.* FROM {table} i
                WHERE NOT EXISTS (
                  SELECT 1 FROM push_log p
                  WHERE p.item_id=i.id AND p.issue_type=?
@@ -107,58 +144,29 @@ def get_unpushed(db: str, issue_type: str, *, exclude_feed_prefix: str | None = 
     if exclude_feed_prefix:
         query += " AND i.feed_key NOT LIKE ?"
         params.append(f"{exclude_feed_prefix}%")
-    query += " ORDER BY created_at DESC"
+    query += f" ORDER BY {order_by}"
     with _conn(db) as c:
         return c.execute(query, params).fetchall()
 
 
-# ── report.db ────────────────────────────────────────────────────────────────
+# ── report.db — adds PDF-specific fields on top of the generic items shape ──
 
 def report_exists(url: str) -> bool:
-    with _conn("report") as c:
-        return c.execute(
-            "SELECT 1 FROM reports WHERE source_id=? LIMIT 1", (url,)
-        ).fetchone() is not None
+    return item_exists("report", url, table="report_items")
 
 
 def insert_report(
     *, source_id: str, feed_key: str, source_name: str,
     title: str, pdf_url: str | None, pdf_data: bytes | None, created_at: str,
 ) -> None:
-    with _conn("report") as c:
-        c.execute(
-            """INSERT OR IGNORE INTO reports
-               (id, source_id, feed_key, source_name, title, pdf_url, pdf_data,
-                created_at, ingested_at)
-               VALUES (?,?,?,?,?,?,?,?,?)""",
-            (item_hash(source_id), source_id, feed_key, source_name,
-             title, pdf_url, pdf_data, created_at, now_iso()),
-        )
+    insert_item(
+        "report", source_id=source_id, feed_key=feed_key, source_name=source_name,
+        title=title, content=None, created_at=created_at, table="report_items",
+        extra_columns={"pdf_url": pdf_url, "pdf_data": pdf_data},
+    )
 
 
-def get_unpushed_reports(issue_type: str) -> list[sqlite3.Row]:
-    with _conn("report") as c:
-        return c.execute(
-            """SELECT r.* FROM reports r
-               WHERE NOT EXISTS (
-                 SELECT 1 FROM push_log p
-                 WHERE p.item_id=r.id AND p.issue_type=?
-               )
-               ORDER BY created_at DESC""",
-            (issue_type,),
-        ).fetchall()
-
-
-def mark_pushed_report(item_id: str, issue_type: str, issue_id: str) -> None:
-    with _conn("report") as c:
-        c.execute(
-            """INSERT OR IGNORE INTO push_log (item_id, issue_type, issue_id, pushed_at)
-               VALUES (?,?,?,?)""",
-            (item_id, issue_type, issue_id, now_iso()),
-        )
-
-
-# ── hn.db ────────────────────────────────────────────────────────────────────
+# ── hn.db — adds score/by/descendants on top of the generic items shape ─────
 
 def hn_exists(hn_id: str) -> bool:
     with _conn("hn") as c:
@@ -170,38 +178,18 @@ def hn_exists(hn_id: str) -> bool:
 def insert_hn(*, hn_id: str, title: str, url: str | None,
               score: int, by: str, descendants: int, created_at: str) -> None:
     source_id = f"https://news.ycombinator.com/item?id={hn_id}"
-    with _conn("hn") as c:
-        c.execute(
-            """INSERT OR IGNORE INTO hn_items
-               (id, source_id, title, url, score, by, descendants, created_at, ingested_at)
-               VALUES (?,?,?,?,?,?,?,?,?)""",
-            (str(hn_id), source_id, title, url, score, by, descendants, created_at, now_iso()),
-        )
+    insert_item(
+        "hn", source_id=source_id, feed_key="hn", source_name="Hacker News",
+        title=title, content=None, created_at=created_at, table="hn_items",
+        id_override=str(hn_id),
+        extra_columns={"external_url": url, "score": score, "by": by, "descendants": descendants},
+    )
 
 
-def get_unpushed_hn(issue_type: str) -> list[sqlite3.Row]:
-    with _conn("hn") as c:
-        return c.execute(
-            """SELECT h.* FROM hn_items h
-               WHERE NOT EXISTS (
-                 SELECT 1 FROM push_log p
-                 WHERE p.item_id=h.id AND p.issue_type=?
-               )
-               ORDER BY score DESC""",
-            (issue_type,),
-        ).fetchall()
-
-
-def mark_pushed_hn(item_id: str, issue_type: str, issue_id: str) -> None:
-    with _conn("hn") as c:
-        c.execute(
-            """INSERT OR IGNORE INTO push_log (item_id, issue_type, issue_id, pushed_at)
-               VALUES (?,?,?,?)""",
-            (item_id, issue_type, issue_id, now_iso()),
-        )
-
-
-# ── youtube.db ───────────────────────────────────────────────────────────────
+# ── youtube.db — dedup table + media-download-link table are genuinely
+# unique to this db (no other db has an equivalent), so they stay as
+# dedicated functions. yt_items / yt_media_items themselves use the generic
+# item_exists/insert_item/get_unpushed above with table="yt_items" etc.
 
 def yt_exists(video_url: str) -> bool:
     """Dedup check — looks at yt_seen, which every processed video is
@@ -237,15 +225,12 @@ def insert_yt(
     Dedup for those videos is still handled separately via mark_yt_seen()."""
     if not subtitle:
         return
-    with _conn("youtube") as c:
-        c.execute(
-            """INSERT OR IGNORE INTO yt_items
-               (id, video_url, video_id, channel_id, channel_name, feed_key,
-                title, subtitle, published_at, ingested_at, mode)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-            (item_hash(video_url), video_url, video_id, channel_id, channel_name,
-             feed_key, title, subtitle, published_at, now_iso(), mode),
-        )
+    insert_item(
+        "youtube", source_id=video_url, feed_key=feed_key, source_name=channel_name,
+        title=title, content=subtitle, created_at=published_at, table="yt_items",
+        display_mode="title_excerpt",
+        extra_columns={"video_id": video_id, "channel_id": channel_id, "mode": mode},
+    )
 
 
 def insert_yt_media_item(
@@ -257,15 +242,12 @@ def insert_yt_media_item(
     yt_items, which keeps yt_items limited to rows with actual subtitle
     content. A video is in exactly one of yt_items / yt_media_items, never
     both — insert_yt() already returns early when subtitle is empty."""
-    with _conn("youtube") as c:
-        c.execute(
-            """INSERT OR IGNORE INTO yt_media_items
-               (id, video_url, video_id, channel_id, channel_name, feed_key,
-                title, published_at, ingested_at, mode)
-               VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            (item_hash(video_url), video_url, video_id, channel_id, channel_name,
-             feed_key, title, published_at, now_iso(), mode),
-        )
+    insert_item(
+        "youtube", source_id=video_url, feed_key=feed_key, source_name=channel_name,
+        title=title, content=None, created_at=published_at, table="yt_media_items",
+        display_mode="title_only",
+        extra_columns={"video_id": video_id, "channel_id": channel_id, "mode": mode},
+    )
 
 
 def set_yt_media_url(video_id: str, kind: str, media_url: str) -> None:
@@ -289,41 +271,3 @@ def get_yt_media(video_id: str) -> dict[str, str]:
             "SELECT kind, media_url FROM yt_media WHERE video_id=?", (video_id,)
         ).fetchall()
         return {r["kind"]: r["media_url"] for r in rows}
-
-
-def get_unpushed_yt(issue_type: str) -> list[sqlite3.Row]:
-    with _conn("youtube") as c:
-        return c.execute(
-            """SELECT y.* FROM yt_items y
-               WHERE NOT EXISTS (
-                 SELECT 1 FROM push_log p
-                 WHERE p.item_id=y.id AND p.issue_type=?
-               )
-               ORDER BY feed_key, published_at DESC""",
-            (issue_type,),
-        ).fetchall()
-
-
-def get_unpushed_yt_media(issue_type: str) -> list[sqlite3.Row]:
-    """Videos with no subtitle (video/audio-only channels) — title + download
-    link only, no full content. Uses the same push_log item_id namespace as
-    yt_items (both hash from video_url), so a video never double-counts."""
-    with _conn("youtube") as c:
-        return c.execute(
-            """SELECT y.* FROM yt_media_items y
-               WHERE NOT EXISTS (
-                 SELECT 1 FROM push_log p
-                 WHERE p.item_id=y.id AND p.issue_type=?
-               )
-               ORDER BY feed_key, published_at DESC""",
-            (issue_type,),
-        ).fetchall()
-
-
-def mark_pushed_yt(item_id: str, issue_type: str, issue_id: str) -> None:
-    with _conn("youtube") as c:
-        c.execute(
-            """INSERT OR IGNORE INTO push_log (item_id, issue_type, issue_id, pushed_at)
-               VALUES (?,?,?,?)""",
-            (item_id, issue_type, issue_id, now_iso()),
-        )

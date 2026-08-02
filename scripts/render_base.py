@@ -280,6 +280,101 @@ def export_full_articles_zip(rows, zip_path, *, title_key="title",
     return len(paths)
 
 
+def render_simple_digest(
+    *,
+    db: str,
+    issue_type: str,
+    title_prefix: str,
+    issue_label: str,
+    subject_prefix: str,
+    out_name: str,
+    block_dispatch,
+    table: str = "items",
+    group_by: str = "source_name",
+    group_label_fn=None,
+    show_group_count: bool = True,
+    wrap_ul: bool = False,
+    pre_hook=None,
+    summary_fn=None,
+) -> None:
+    """Generic 'weekly digest' renderer shared by render_dive.py, render_zen.py,
+    render_paper.py, render_report.py — the four scripts that are all really
+    the same shape: query unpushed rows, group them, dispatch each row to a
+    block-rendering function based on its display_mode, write the email, mark
+    pushed. Each caller just supplies the bits that differ.
+
+    block_dispatch(row, is_first_in_group) -> html string for one row. The
+        is_first_in_group flag lets callers suppress a leading separator line
+        (e.g. block_full's `sep` argument) for the first item under each
+        heading, matching the original per-script behavior. Callers whose
+        block function has no separator concept (e.g. block_title_only) can
+        just ignore the second argument.
+    group_label_fn(group_key, rows) -> heading text for a group (defaults to
+        group_key itself — used by paper.py's feed_key -> human label mapping).
+    show_group_count: whether section_heading() shows "(N)" after the label.
+    wrap_ul: wrap each group's rows in <ul>...</ul> (paper.py's <li>-based
+        block_title_only needs this; article-based blocks like block_full
+        don't want it).
+    pre_hook(rows) -> optional extra dict merged into the template context
+        (e.g. report.py's PDF-writing step, which returns pdf_count/pdf_files
+        for use in the subject/summary line). Return {} if nothing to add.
+    summary_fn(rows, extra) -> override the one-line summary paragraph; by
+        default just says "N items".
+    """
+    from collections import defaultdict
+    from pathlib import Path
+    from db_utils import get_unpushed, mark_pushed, run_id as new_run_id
+
+    root      = Path(__file__).resolve().parent.parent
+    out_html  = root / f"{out_name}.html"
+    out_subj  = root / f"{out_name}_subject.txt"
+
+    issue_id = new_run_id()
+    rows     = get_unpushed(db, issue_type, table=table)
+    if not rows:
+        print(f"{out_name}: nothing to send")
+        return
+
+    extra = pre_hook(rows) if pre_hook else {}
+
+    groups: dict[str, list] = defaultdict(list)
+    for row in rows:
+        groups[row[group_by]].append(row)
+
+    if summary_fn:
+        summary_text = summary_fn(rows, extra)
+    else:
+        summary_text = f"{len(rows)} items"
+
+    parts = [f'<p style="margin:0 0 32px;font-size:13px;color:{MUTED}">{summary_text}</p>']
+    for key in sorted(groups):
+        grp   = groups[key]
+        label = group_label_fn(key, grp) if group_label_fn else key
+        heading_count = len(grp) if show_group_count else None
+        parts.append(section_heading(label, heading_count) if heading_count is not None
+                     else section_heading(label))
+        if wrap_ul:
+            parts.append('<ul style="list-style:none;margin:0;padding:0">')
+        for i, row in enumerate(grp):
+            parts.append(block_dispatch(row, i == 0))
+        if wrap_ul:
+            parts.append("</ul>")
+
+    date_str = fmt_date()
+    html_out = email_shell(
+        title=f"{title_prefix} · {date_str}",
+        subtitle=summary_text,
+        body="\n".join(parts),
+        issue_label=issue_label,
+    )
+    out_html.write_text(html_out, encoding="utf-8")
+    out_subj.write_text(f"{subject_prefix} · {date_str} · {len(rows)} items")
+
+    for row in rows:
+        mark_pushed(db, row["id"], issue_type, issue_id)
+    print(f"{out_name}: {len(rows)} items → {out_html.name}")
+
+
 # ── Block renderers ───────────────────────────────────────────────────────────
 
 def block_full(title: str, source_name: str, url: str,

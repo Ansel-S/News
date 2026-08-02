@@ -9,8 +9,6 @@ import os
 import re
 import subprocess
 import tempfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta, UTC
 from pathlib import Path
 
 import feedparser
@@ -21,6 +19,7 @@ from db_utils import (
     run_id, yt_exists, mark_yt_seen, insert_yt, insert_yt_media_item,
     insert_error as _err, now_iso,
 )
+from ingest_base import is_recent as _is_recent, run_parallel
 
 MAX_WORKERS   = int(os.getenv("YT_WORKERS", "3"))
 LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "8"))
@@ -46,13 +45,7 @@ def yt_feed_url(channel_id: str) -> str:
 
 
 def is_recent(entry) -> bool:
-    pub = entry.get("published_parsed")
-    if pub is None:
-        return True
-    try:
-        return datetime(*pub[:6], tzinfo=UTC) >= datetime.now(UTC) - timedelta(days=LOOKBACK_DAYS)
-    except Exception:
-        return True
+    return _is_recent(entry, lookback_days=LOOKBACK_DAYS)
 
 
 def pick_subtitle_file(tmp_dir: Path) -> Path | None:
@@ -286,21 +279,10 @@ def main() -> None:
                 continue
             modes = _normalize_modes(src.get("mode"))
             tasks.append(dict(channel_id=cid, channel_name=src["name"],
-                              feed_key=feed_key, modes=modes))
+                              feed_key=feed_key, modes=modes, r=r))
 
     print(f"ingest_youtube: {len(tasks)} channels, {MAX_WORKERS} workers")
-
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as exe:
-        futures = {
-            exe.submit(fetch_channel, t["channel_id"], t["channel_name"],
-                      t["feed_key"], t["modes"], r): t
-            for t in tasks
-        }
-        for future in as_completed(futures):
-            try:
-                future.result()
-            except Exception as ex:
-                print(f"[unhandled] {futures[future]['channel_name']}: {ex}")
+    run_parallel(tasks, fetch_channel, max_workers=MAX_WORKERS, label_key="channel_name")
 
     print("ingest_youtube: done")
 
