@@ -37,6 +37,39 @@ feeds:
         url: https://feeds.feedburner.com/ruanyifeng
         display_mode: full
 
+  # ── Daily · Google News ────────────────────────────────────────────────────────────
+  - key: rss.daily.news
+    db: core
+    issue: daily
+    sources:
+      - name: Lexington News
+        url: https://news.google.com/rss/topics/CAAqHAgKIhZDQklTQ2pvSWJHOWpZV3hmZGpJb0FBUAE/sections/CAQiUENCSVNOam9JYkc5allXeGZkakpDRUd4dlkyRnNYM1l5WDNObFkzUnBiMjV5Q3hJSkwyMHZNREZzZUhjMmVnc0tDUzl0THpBeGJIaDNOaWdBKjEIACotCAoiJ0NCSVNGem9JYkc5allXeGZkako2Q3dvSkwyMHZNREZzZUhjMktBQVABUAE?hl=en-US&gl=US&ceid=US%3Aen
+        display_mode: full
+        no_store: true
+      - name: Shanghai News
+        url: https://news.google.com/rss/topics/CAAqHAgKIhZDQklTQ2pvSWJHOWpZV3hmZGpJb0FBUAE/sections/CAQiTkNCSVNORG9JYkc5allXeGZkakpDRUd4dlkyRnNYM1l5WDNObFkzUnBiMjV5Q2hJSUwyMHZNRFozYW1aNkNnb0lMMjB2TURaM2FtWW9BQSowCAAqLAgKIiZDQklTRmpvSWJHOWpZV3hmZGpKNkNnb0lMMjB2TURaM2FtWW9BQVABUAE?hl=en-US&gl=US&ceid=US%3Aen
+        display_mode: full
+        no_store: true
+      - name: World News
+        url: https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx1YlY4U0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US%3Aen
+        display_mode: full
+      - name: Business News
+        url: https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US%3Aen
+        display_mode: full
+        no_store: true
+      - name: Technology News
+        url: https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGRqTVhZU0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US%3Aen
+        display_mode: full
+        no_store: true
+      - name: Premier League News
+        url: https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREpmZEdNU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen
+        display_mode: full
+        no_store: true
+      - name: La Liga News
+        url: https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRGxuY1hnU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen
+        display_mode: full
+        no_store: true
+
   # ── Daily · GitHub ──────────────────────────────────────────────────────────
   - key: rss.daily.github
     db: core
