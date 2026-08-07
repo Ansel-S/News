@@ -219,10 +219,6 @@ dewsletter/
 ├── schema.sql                — schema reference (kept in sync by hand with db_init.py)
 ├── test_local.sh             — local smoke test across every script
 ├── .gitattributes            — database/*.db → LFS
-├── geoip/                    — unrelated: CN IP routing list generator, see geoip/README.md
-│   ├── generate.sh
-│   ├── README.md
-│   └── dist/                 — generated, gitignored; only ever pushed to the `release` branch
 └── .github/workflows/
     ├── daily.yml              — Daily + Extra
     ├── dive_weekly.yml
@@ -230,6 +226,5 @@ dewsletter/
     ├── paper_weekly.yml
     ├── report_monthly.yml
     ├── yt_weekly.yml
-    ├── email_download.yml     — runs every 3 days, not on the issue schedule above
-    └── geoip-update.yml       — hourly; entirely independent of the workflows above
+    └── email_download.yml     — runs every 3 days, not on the issue schedule above
 ```
