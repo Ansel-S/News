@@ -5,6 +5,15 @@ their own standalone email, separate from the daily digest — these three are
 long-form and/or have a predictable rhythm that doesn't fit well folded into
 the daily's shorter-form sections.
 
+Ruanyf/HelloGitHub are identified by source_name (see
+render_base.EXTRA_SOURCE_NAMES) since feeds/rss.yaml nests them under
+rss.daily.tech / rss.daily.github alongside their daily-bound feed-mates,
+not a dedicated rss.extra.* key.
+
+Ruanyf rows with a successful full-text fetch (fetched_full=1) are added to
+the same zip as TLDR. HelloGitHub is repo_card — never full-text fetched,
+never zip-eligible (see ingest_rss.py).
+
 Section order: TLDR (teaser + zip attachment) → Ruanyf Weekly → HelloGitHub
 """
 from __future__ import annotations
@@ -19,6 +28,7 @@ from render_base import (
     MUTED, TEXT, MONO, BORDER,
 )
 import tldr_fetch
+import zipfile as _zipfile
 
 ROOT       = Path(__file__).resolve().parent.parent
 OUT_HTML   = ROOT / "out_extra.html"
@@ -75,8 +85,8 @@ def main() -> None:
     tldr_html, tldr_count, tldr_articles = render_tldr_section()
 
     extra_rows = get_unpushed("core", ISSUE_TYPE)
-    ruanyf_rows = [r for r in extra_rows if r["feed_key"] == "rss.extra.ruanyf"]
-    hellogh_rows = [r for r in extra_rows if r["feed_key"] == "rss.extra.hellogithub"]
+    ruanyf_rows = [r for r in extra_rows if r["source_name"] == "Ruanyf Weekly"]
+    hellogh_rows = [r for r in extra_rows if r["source_name"] == "HelloGitHub"]
 
     ruanyf_html = render_rss_section(ruanyf_rows, "Ruanyf Weekly", block_title_excerpt)
     hellogh_html = render_rss_section(hellogh_rows, "HelloGitHub", block_repo_card)
@@ -86,16 +96,35 @@ def main() -> None:
         print("render_extra: nothing to send")
         return
 
-    # TLDR articles get written + zipped here (separate zip from daily's)
+    # TLDR articles + any Ruanyf rows with a successful full-text fetch get
+    # written + zipped here (separate zip from daily's). HelloGitHub
+    # (repo_card) is never zip-eligible — see ingest_rss.py.
     if OUT_ZIP.exists():
         OUT_ZIP.unlink()
     zip_count = 0
-    if tldr_articles:
-        tmp_dir = ROOT / ".extra_tldr_tmp"
-        paths = tldr_fetch.write_markdown_files(tldr_articles, tmp_dir)
-        import zipfile, shutil
-        with zipfile.ZipFile(OUT_ZIP, "w", zipfile.ZIP_DEFLATED) as zf:
-            for p in paths:
+    ruanyf_full_rows = [r for r in ruanyf_rows if r["fetched_full"]]
+
+    if tldr_articles or ruanyf_full_rows:
+        import shutil
+        tmp_dir = ROOT / ".extra_tmp"
+        if tmp_dir.exists():
+            shutil.rmtree(tmp_dir)
+        tmp_dir.mkdir(parents=True)
+
+        if tldr_articles:
+            tldr_fetch.write_markdown_files(tldr_articles, tmp_dir)
+        if ruanyf_full_rows:
+            # Reuse export_full_articles_zip's per-row .md writing by pointing
+            # it at a throwaway zip, then merge that zip's contents into
+            # tmp_dir so both sources land in one final archive.
+            ruanyf_zip = ROOT / ".ruanyf_tmp.zip"
+            export_full_articles_zip(ruanyf_full_rows, ruanyf_zip)
+            with _zipfile.ZipFile(ruanyf_zip) as zf_in:
+                zf_in.extractall(tmp_dir)
+            ruanyf_zip.unlink()
+
+        with _zipfile.ZipFile(OUT_ZIP, "w", _zipfile.ZIP_DEFLATED) as zf:
+            for p in tmp_dir.iterdir():
                 zf.write(p, arcname=p.name)
                 zip_count += 1
         shutil.rmtree(tmp_dir)
@@ -103,7 +132,7 @@ def main() -> None:
     summary = (
         f'<p style="margin:0 0 32px;font-size:13px;color:{MUTED};line-height:1.6">'
         f'{total} items'
-        f'{" &middot; TLDR full text in attachment" if zip_count else ""}</p>'
+        f'{" &middot; full text in attachment" if zip_count else ""}</p>'
     )
 
     date_str = fmt_date()

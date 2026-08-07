@@ -29,7 +29,8 @@ _ITEMS_CORE_COLS = """
             created_at   TEXT,
             ingested_at  TEXT NOT NULL DEFAULT '',
             word_count   INTEGER DEFAULT 0,
-            read_minutes INTEGER DEFAULT 0
+            read_minutes INTEGER DEFAULT 0,
+            fetched_full INTEGER NOT NULL DEFAULT 0
 """
 
 SCHEMAS: dict[str, list[str]] = {
@@ -54,11 +55,47 @@ SCHEMAS: dict[str, list[str]] = {
     ],
     "dive": [],   # same as core — filled below
     "zen":  [],
-    "paper": [],
-    "report": [
-        f"""CREATE TABLE IF NOT EXISTS report_items ({_ITEMS_CORE_COLS},
+    "paper": [
+        f"""CREATE TABLE IF NOT EXISTS items ({_ITEMS_CORE_COLS},
             pdf_url  TEXT,
             pdf_data BLOB
+        )""",
+        """CREATE TABLE IF NOT EXISTS push_log (
+            item_id    TEXT NOT NULL,
+            issue_type TEXT NOT NULL,
+            issue_id   TEXT NOT NULL,
+            pushed_at  TEXT NOT NULL,
+            PRIMARY KEY (item_id, issue_type)
+        )""",
+        """CREATE TABLE IF NOT EXISTS errors (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id     TEXT NOT NULL,
+            source_id  TEXT NOT NULL,
+            stage      TEXT NOT NULL,
+            error_type TEXT NOT NULL,
+            message    TEXT,
+            created_at TEXT NOT NULL
+        )""",
+    ],
+    "report": [
+        # Explicit columns rather than _ITEMS_CORE_COLS: report_items doesn't
+        # need fetched_full (its zip-eligibility is gated directly on
+        # pdf_data being non-null in render_report.py, unlike core/dive/zen/
+        # paper which track full-text-fetch success separately from content).
+        """CREATE TABLE IF NOT EXISTS report_items (
+            id           TEXT PRIMARY KEY,
+            source_id    TEXT NOT NULL,
+            feed_key     TEXT NOT NULL,
+            source_name  TEXT NOT NULL,
+            display_mode TEXT NOT NULL,
+            title        TEXT,
+            content      TEXT,
+            created_at   TEXT,
+            ingested_at  TEXT NOT NULL DEFAULT '',
+            word_count   INTEGER DEFAULT 0,
+            read_minutes INTEGER DEFAULT 0,
+            pdf_url      TEXT,
+            pdf_data     BLOB
         )""",
         """CREATE TABLE IF NOT EXISTS push_log (
             item_id    TEXT NOT NULL,
@@ -148,8 +185,10 @@ SCHEMAS: dict[str, list[str]] = {
     ],
 }
 
-# dive / zen / paper share identical schema with core
-for _db in ("dive", "zen", "paper"):
+# dive / zen share identical schema with core; paper has its own (above) —
+# it needs pdf_url/pdf_data columns for arXiv PDF downloads that dive/zen
+# have no equivalent use for.
+for _db in ("dive", "zen"):
     SCHEMAS[_db] = SCHEMAS["core"]
 
 
@@ -184,7 +223,13 @@ def _migrate_before_create(conn: sqlite3.Connection, name: str) -> None:
 
     if name == "report" and _table_exists(conn, "reports") and not _table_exists(conn, "report_items"):
         print("db_init: migrating report.db 'reports' -> 'report_items'...")
-        conn.execute(f"CREATE TABLE report_items ({_ITEMS_CORE_COLS}, pdf_url TEXT, pdf_data BLOB)")
+        conn.execute("""CREATE TABLE report_items (
+            id TEXT PRIMARY KEY, source_id TEXT NOT NULL, feed_key TEXT NOT NULL,
+            source_name TEXT NOT NULL, display_mode TEXT NOT NULL, title TEXT,
+            content TEXT, created_at TEXT, ingested_at TEXT NOT NULL DEFAULT '',
+            word_count INTEGER DEFAULT 0, read_minutes INTEGER DEFAULT 0,
+            pdf_url TEXT, pdf_data BLOB
+        )""")
         old_cols = _table_cols(conn, "reports")
         old_rows = conn.execute("SELECT * FROM reports").fetchall()
         col_names = [d[0] for d in conn.execute("SELECT * FROM reports LIMIT 1").description] \
@@ -276,11 +321,11 @@ def _migrate_before_create(conn: sqlite3.Connection, name: str) -> None:
                         """INSERT OR IGNORE INTO yt_items
                            (id, source_id, feed_key, source_name, display_mode, title,
                             content, created_at, ingested_at, word_count, read_minutes,
-                            video_id, channel_id, mode)
-                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                            fetched_full, video_id, channel_id, mode)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                         (r["id"], video_url, r["feed_key"], channel_name, "title_excerpt",
                          r.get("title"), subtitle, published_at, r.get("ingested_at", ""), 0, 0,
-                         r["video_id"], r["channel_id"], r.get("mode", "mixed")),
+                         1, r["video_id"], r["channel_id"], r.get("mode", "mixed")),
                     )
                 else:
                     # No subtitle in the old row — goes to yt_media_items instead
@@ -327,9 +372,38 @@ def _migrate_after_create(conn: sqlite3.Connection, name: str) -> None:
             ("word_count",   "INTEGER DEFAULT 0"),
             ("read_minutes", "INTEGER DEFAULT 0"),
             ("ingested_at",  "TEXT NOT NULL DEFAULT ''"),
+            ("fetched_full", "INTEGER NOT NULL DEFAULT 0"),
         ]:
             if col not in existing:
                 conn.execute(f"ALTER TABLE items ADD COLUMN {col} {defn}")
+        conn.commit()
+
+    if name == "paper":
+        # paper.db's items table gets its own pdf_url/pdf_data columns
+        # (arXiv PDF downloads) — not shared with core/dive/zen, which have
+        # no equivalent concept.
+        existing = _table_cols(conn, "items")
+        for col, defn in [("pdf_url", "TEXT"), ("pdf_data", "BLOB")]:
+            if col not in existing:
+                conn.execute(f"ALTER TABLE items ADD COLUMN {col} {defn}")
+        conn.commit()
+
+    if name == "youtube":
+        # yt_items/yt_media_items already went through the items-shape
+        # rename migration above (or were created fresh with it) — this is
+        # just the additive fetched_full backfill for tables that predate
+        # that column. yt_items rows always have real subtitle content by
+        # construction (insert_yt() returns early otherwise), so 1 is the
+        # correct backfill value; yt_media_items rows never have subtitle
+        # text, so they stay at the column default of 0.
+        for table, default in (("yt_items", 1), ("yt_media_items", 0)):
+            if not _table_exists(conn, table):
+                continue
+            existing = _table_cols(conn, table)
+            if "fetched_full" not in existing:
+                conn.execute(
+                    f"ALTER TABLE {table} ADD COLUMN fetched_full INTEGER NOT NULL DEFAULT {default}"
+                )
         conn.commit()
 
 

@@ -1,190 +1,47 @@
 """
-ingest_rss.py — Unified RSS ingest for all non-HN, non-YouTube feeds
+ingest_rss.py — Thin orchestrator for all non-HN, non-YouTube feeds.
 Usage:
   python scripts/ingest_rss.py              # all RSS feeds
   python scripts/ingest_rss.py core         # only feeds writing to core.db
   python scripts/ingest_rss.py core dive    # multiple dbs
 
-Billboard is scraped directly from billboard.com (display_mode: chart_only).
-Reports (report.db) attempt to download the PDF linked from each entry.
+This file used to hold every collector/processor function inline; as of
+Phase 2 of the architecture redesign (see /DESIGN.md) it's just the
+per-source dispatch loop — reads config.rss_feeds(), and for each source
+decides which collector to fetch raw entries with and which processor to
+hand them to:
+
+  chart_only (Billboard)               -> collectors.scraper.scrape_billboard()
+  db == "report"                       -> collectors.rss + processors.report
+  feed_key starts with rss.paper.arxiv -> collectors.rss + processors.paper
+  everything else                      -> collectors.rss + processors.article
+
+report.db also pulls from sources with no RSS feed at all (Brookings, AI
+Index, etc) via collectors.scraper.ingest_report_scrapers() — runs
+automatically whenever report.db is a target, no separate workflow step
+needed.
+
+Behavior is unchanged from before this split — see collectors/ and
+processors/ for the actual fetch/parse/store logic, moved out verbatim.
 """
 from __future__ import annotations
 
 import os
-import re
 import sys
 from datetime import datetime, UTC
 
-import feedparser
-import requests
-import trafilatura
-
 from config import rss_feeds
-from db_utils import (
-    run_id, now_iso,
-    item_exists, insert_item, insert_error,
-    report_exists, insert_report,
-)
-from ingest_base import is_recent as _is_recent, run_parallel
+from db_utils import run_id, now_iso, item_exists, insert_item, insert_error
+from ingest_base import run_parallel
 
-LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "8"))
-MAX_WORKERS   = int(os.getenv("RSS_WORKERS", "8"))
-RETRY_SOURCE  = os.getenv("RETRY_ONLY_SOURCE")
+import collectors.rss as rss_collector
+from collectors.scraper import scrape_billboard, ingest_report_scrapers
+from processors.article import process_entry
+from processors.paper import process_paper_entry
+from processors.report import process_report_entry
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; Dewsletter/1.0)"}
+MAX_WORKERS = int(os.getenv("RSS_WORKERS", "8"))
 
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def is_recent(entry) -> bool:
-    return _is_recent(entry, lookback_days=LOOKBACK_DAYS)
-
-
-def fetch_text(url: str) -> str | None:
-    raw = trafilatura.fetch_url(url)
-    if raw:
-        text = trafilatura.extract(raw, output_format="markdown")
-        if text:
-            return text
-    return None
-
-
-def fetch_pdf(url: str) -> bytes | None:
-    """Try to download a PDF. Returns raw bytes or None."""
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=60, stream=True)
-        r.raise_for_status()
-        ct = r.headers.get("content-type", "")
-        if "pdf" in ct or url.lower().endswith(".pdf"):
-            return r.content
-    except Exception:
-        pass
-    return None
-
-
-def find_pdf_link(html: str, base_url: str) -> str | None:
-    """Extract first PDF href from HTML."""
-    matches = re.findall(r'href=["\']([^"\']*\.pdf[^"\']*)["\']', html, re.I)
-    if not matches:
-        return None
-    link = matches[0]
-    if link.startswith("http"):
-        return link
-    from urllib.parse import urljoin
-    return urljoin(base_url, link)
-
-
-# ── Billboard scraper ─────────────────────────────────────────────────────────
-
-def scrape_billboard() -> str:
-    url = "https://www.billboard.com/charts/hot-100/"
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=30)
-        r.raise_for_status()
-    except Exception as e:
-        return f"Billboard fetch failed: {e}"
-
-    html = r.text
-    entries = re.findall(
-        r'<h3[^>]+id="[^"]*"[^>]*class="[^"]*c-title[^"]*"[^>]*>\s*(.*?)\s*</h3>.*?'
-        r'<span[^>]+class="[^"]*c-label[^"]*a-no-trucate[^"]*"[^>]*>\s*(.*?)\s*</span>',
-        html, re.DOTALL
-    )
-
-    if not entries:
-        text = trafilatura.extract(html)
-        return text or "Billboard parse failed"
-
-    lines = ["| Rank | Title | Artist |", "|------|-------|--------|"]
-    for i, (song, artist) in enumerate(entries[:20], 1):
-        song   = re.sub(r"<[^>]+>", "", song).strip()
-        artist = re.sub(r"<[^>]+>", "", artist).strip()
-        lines.append(f"| {i} | {song} | {artist} |")
-    return "\n".join(lines)
-
-
-# ── Content extraction ────────────────────────────────────────────────────────
-
-def extract_content(url: str, summary: str, display_mode: str) -> str:
-    if display_mode in ("title_only", "chart_only"):
-        return summary or ""
-    text = fetch_text(url)
-    if text:
-        return text
-    # Wayback fallback
-    try:
-        wb = f"https://web.archive.org/web/{url}"
-        text = fetch_text(wb)
-        if text:
-            return text
-    except Exception:
-        pass
-    return summary or ""
-
-
-# ── Report entry processing ───────────────────────────────────────────────────
-
-def process_report_entry(entry, *, feed_key: str, source_name: str, r: str) -> None:
-    url = entry.get("link", "")
-    if not url or report_exists(url):
-        return
-
-    title      = entry.get("title", "")
-    created_at = entry.get("published", r)
-
-    # Try to find and download PDF
-    pdf_url: str | None  = None
-    pdf_data: bytes | None = None
-    try:
-        page = requests.get(url, headers=HEADERS, timeout=30)
-        page.raise_for_status()
-        ct = page.headers.get("content-type", "")
-        if "pdf" in ct:
-            pdf_url  = url
-            pdf_data = page.content
-        else:
-            link = find_pdf_link(page.text, url)
-            if link:
-                pdf_url  = link
-                pdf_data = fetch_pdf(link)
-    except Exception as e:
-        insert_error("report", run_id=r, source_id=url,
-                     stage="fetch", error_type="network", message=str(e))
-
-    insert_report(
-        source_id=url, feed_key=feed_key, source_name=source_name,
-        title=title, pdf_url=pdf_url, pdf_data=pdf_data, created_at=created_at,
-    )
-    pdf_status = f"PDF {len(pdf_data)//1024}KB" if pdf_data else "no PDF"
-    print(f"  [report] {title[:60]} — {pdf_status}")
-
-
-# ── Generic RSS entry processing ──────────────────────────────────────────────
-
-def process_entry(entry, *, db: str, feed_key: str, source_name: str,
-                  display_mode: str, r: str) -> None:
-    url = entry.get("link", "")
-    if not url:
-        return
-    if RETRY_SOURCE and feed_key != RETRY_SOURCE:
-        return
-    if not is_recent(entry):
-        return
-    if item_exists(db, url):
-        return
-
-    summary = entry.get("summary", "")
-    content = extract_content(url, summary, display_mode)
-
-    insert_item(
-        db,
-        source_id=url, feed_key=feed_key, source_name=source_name,
-        display_mode=display_mode, title=entry.get("title", ""),
-        content=content, created_at=entry.get("published", r),
-    )
-
-
-# ── Per-feed fetch ────────────────────────────────────────────────────────────
 
 def fetch_feed(feed_url: str, *, db: str, feed_key: str, source_name: str,
                display_mode: str, r: str) -> None:
@@ -200,19 +57,21 @@ def fetch_feed(feed_url: str, *, db: str, feed_key: str, source_name: str,
                 display_mode="chart_only",
                 title=f"Billboard Hot 100 · {datetime.now(UTC).strftime('%Y-%m-%d')}",
                 content=content, created_at=now_iso(),
+                extra_columns={"fetched_full": 0},
             )
         return
 
     try:
-        resp = requests.get(feed_url, headers=HEADERS, timeout=30)
-        resp.raise_for_status()
-        feed = feedparser.parse(resp.content)
+        entries = rss_collector.fetch_entries(feed_url)
 
-        for entry in feed.entries:
+        for entry in entries:
             try:
                 if db == "report":
                     process_report_entry(entry, feed_key=feed_key,
                                          source_name=source_name, r=r)
+                elif db == "paper" and feed_key.startswith("rss.paper.arxiv"):
+                    process_paper_entry(entry, feed_key=feed_key,
+                                       source_name=source_name, r=r)
                 else:
                     process_entry(entry, db=db, feed_key=feed_key,
                                   source_name=source_name, display_mode=display_mode, r=r)
@@ -223,8 +82,6 @@ def fetch_feed(feed_url: str, *, db: str, feed_key: str, source_name: str,
         insert_error(db, run_id=r, source_id=feed_url,
                      stage="fetch", error_type="network", message=str(ex))
 
-
-# ── Entry point ───────────────────────────────────────────────────────────────
 
 def main(target_dbs: list[str] | None = None) -> None:
     r     = run_id()
@@ -251,6 +108,13 @@ def main(target_dbs: list[str] | None = None) -> None:
 
     print(f"ingest_rss: {len(tasks)} feeds, {MAX_WORKERS} workers")
     run_parallel(tasks, fetch_feed, max_workers=MAX_WORKERS, label_key="feed_url")
+
+    # report.db also pulls from sources with no RSS feed at all (Brookings,
+    # AI Index, etc) — these run through their own per-source scrapers
+    # rather than the feed-parsing path above. Only run when report.db is
+    # actually a target, same gating as the RSS-backed report.* sources.
+    if target_dbs is None or "report" in target_dbs:
+        ingest_report_scrapers(r)
 
 
 if __name__ == "__main__":

@@ -2,13 +2,17 @@
 render_daily.py — Daily digest renderer
 Section order: GitHub → Digest → HN → Billboard/Bandcamp
 
-TLDR / Ruanyf Weekly / HelloGitHub live under their own feed_key prefix
-(rss.extra.*) and issue_type "extra_daily" — they're rendered as a separate
-"Dewsletter Extra" email by render_extra.py, not folded in here.
+TLDR / Ruanyf Weekly / HelloGitHub are rendered as a separate "Dewsletter
+Extra" email by render_extra.py, not folded in here — see
+render_base.EXTRA_SOURCE_NAMES for how Ruanyf/HelloGitHub are identified
+(by source_name, since they're nested under the same feed_key as their
+daily-bound feed-mates in feeds/rss.yaml, not a dedicated rss.extra.* key).
 
-Any "full" article from core.db (that isn't one of the rss.extra.* sources)
-gets its complete text written as a .md file and zipped into out_daily.zip
-instead of dumped inline — the email body shows a title+teaser only.
+Any row with fetched_full=1 (successful full-text fetch — independent of
+display_mode) gets its complete text written as a .md file and zipped into
+out_daily.zip. The email body still renders each row per its own
+display_mode (full/title_excerpt/title_only/etc) — a "full" article whose
+fetch failed still displays normally, it's just not in the zip.
 """
 from __future__ import annotations
 import html
@@ -20,7 +24,7 @@ from db_utils import get_unpushed, mark_pushed, run_id as new_run_id
 from render_base import (
     fmt_date, email_shell, section_heading, excerpt,
     block_title_excerpt, block_repo_card, block_hn, chart_table,
-    export_full_articles_zip,
+    export_full_articles_zip, EXTRA_SOURCE_NAMES,
     MUTED, TEXT, ACCENT, MONO, BORDER,
 )
 
@@ -77,13 +81,21 @@ def render_rss_sections(rows) -> tuple[str, int, int, list]:
                         url=row["source_id"], content=row["content"] or "", sep=(i > 0))
             if mode == "full":
                 parts.append(_full_teaser_block(**kw, read_minutes=row["read_minutes"] or 0))
-                full_rows_for_zip.append(row)
             elif mode == "repo_card":
                 parts.append(block_repo_card(**kw))
             elif mode == "chart_only":
                 parts.append(chart_table(row["content"] or ""))
             else:
                 parts.append(block_title_excerpt(**kw))
+
+            # Zip eligibility is independent of display_mode/rendering above —
+            # it only depends on whether the full-text fetch actually
+            # succeeded (row["fetched_full"]). A "full"-mode article whose
+            # fetch failed still displays normally (falls back to whatever
+            # content ended up in the row) but is excluded from the zip.
+            if row["fetched_full"]:
+                full_rows_for_zip.append(row)
+
             total_count   += 1
             total_minutes += row["read_minutes"] or 0
 
@@ -107,7 +119,8 @@ def render_hn_section(hn_rows) -> str:
 
 def main() -> None:
     issue_id = new_run_id()
-    rss_rows = get_unpushed("core", ISSUE_TYPE, exclude_feed_prefix="rss.extra.")
+    rss_rows = [r for r in get_unpushed("core", ISSUE_TYPE)
+               if r["source_name"] not in EXTRA_SOURCE_NAMES]
     hn_rows  = get_unpushed("hn", ISSUE_TYPE, table="hn_items", order_by="score DESC")
 
     rss_html, rss_count, rss_minutes, full_rows = render_rss_sections(rss_rows)

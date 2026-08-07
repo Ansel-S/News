@@ -20,6 +20,18 @@ FONT = ("'Helvetica Neue',Arial,'Liberation Sans',"
 MONO = "ui-monospace,'Cascadia Code','Menlo','Consolas',monospace"
 
 
+# ── Daily ↔ Extra routing ────────────────────────────────────────────────────
+# Ruanyf Weekly and HelloGitHub are configured in feeds/rss.yaml nested under
+# rss.daily.tech / rss.daily.github (alongside TLDR and GitHub Trending
+# respectively) rather than under a dedicated rss.extra.* key — feed_key
+# alone can't distinguish them from their daily-bound feed-mates. Both
+# render_daily.py (excludes these from the Daily digest) and
+# render_extra.py (includes only these, alongside live-fetched TLDR) key off
+# this shared source_name set instead, since source_name is stable
+# regardless of which feed group a source is nested under.
+EXTRA_SOURCE_NAMES = {"Ruanyf Weekly", "HelloGitHub"}
+
+
 # ── Date helpers ──────────────────────────────────────────────────────────────
 
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -278,6 +290,54 @@ def export_full_articles_zip(rows, zip_path, *, title_key="title",
             zf.write(p, arcname=p.name)
     _shutil.rmtree(tmp_dir)
     return len(paths)
+
+
+def export_pdf_zip(rows, zip_path, *, title_key="title",
+                   pdf_key="pdf_data", max_total_bytes: int = 18_000_000) -> tuple[int, int]:
+    """Write one .pdf file per row (only rows with a non-empty pdf blob) into
+    zip_path. Used by render_paper.py (arXiv PDFs) and render_report.py
+    (thinktank PDFs) — rows that failed to download a PDF are simply
+    skipped, so failed fetches never end up in the zip.
+
+    max_total_bytes caps the *uncompressed* PDF bytes written, stopping
+    before the zip grows large enough to blow past email provider size
+    limits — this is exactly what caused a real Report Monthly send to
+    bounce (Gmail's raw limit is 25MB, and base64 attachment encoding
+    inflates that by ~33%, so 18MB of raw PDF bytes leaves real headroom
+    even for a large batch). PDFs are added in row order; once the running
+    total would exceed the cap, remaining PDFs are skipped for this run —
+    they stay in report.db/paper.db and will be picked up (or re-attempted)
+    the following issue since they're still marked unpushed... actually
+    they're NOT re-attempted, since render_simple_digest marks every row in
+    `rows` pushed regardless of zip inclusion — skipped PDFs are still
+    listed by title in the email, just not attached this time.
+
+    Returns (files_written, files_skipped_for_size)."""
+    zip_path = _Path(zip_path)
+    if zip_path.exists():
+        zip_path.unlink()
+
+    seen: dict[str, int] = {}
+    count = 0
+    skipped = 0
+    running_bytes = 0
+    with _zipfile.ZipFile(zip_path, "w", _zipfile.ZIP_DEFLATED) as zf:
+        for row in rows:
+            data = row[pdf_key] if pdf_key in row.keys() else None
+            if not data:
+                continue
+            if running_bytes + len(data) > max_total_bytes:
+                skipped += 1
+                continue
+            title = row[title_key] or "(untitled)"
+            slug  = _slugify(title)
+            n     = seen.get(slug, 0)
+            seen[slug] = n + 1
+            fname = f"{slug}.pdf" if n == 0 else f"{slug}-{n}.pdf"
+            zf.writestr(fname, data)
+            running_bytes += len(data)
+            count += 1
+    return count, skipped
 
 
 def render_simple_digest(

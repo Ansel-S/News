@@ -1,0 +1,457 @@
+sources:
+- id: UCvijahEyGtvMpmMHBu4FS2w
+  collector: youtube
+  name: 零度解说
+  channel_id: UCvijahEyGtvMpmMHBu4FS2w
+  mode:
+  - audio
+  - video
+- id: UCeUJO1H3TEXu2syfAAPjYKQ
+  collector: youtube
+  name: 极客湾
+  channel_id: UCeUJO1H3TEXu2syfAAPjYKQ
+  mode:
+  - audio
+  - video
+- id: UCUWUYyNh8KFS7E6-Q0ajBzQ
+  collector: youtube
+  name: 司波图
+  channel_id: UCUWUYyNh8KFS7E6-Q0ajBzQ
+  mode:
+  - audio
+  - video
+- id: UCXLV-KfDQAFUJ_as9H1Lfbw
+  collector: youtube
+  name: IT咖啡馆
+  channel_id: UCXLV-KfDQAFUJ_as9H1Lfbw
+  mode:
+  - mixed
+- id: UC0k8npj7VdHzN2L_-JSaPyA
+  collector: youtube
+  name: AI 探索与发现
+  channel_id: UC0k8npj7VdHzN2L_-JSaPyA
+  mode:
+  - audio
+  - video
+- id: UCGs_cktFPCgN8ggJJVon84g
+  collector: youtube
+  name: ami.moment
+  channel_id: UCGs_cktFPCgN8ggJJVon84g
+  mode:
+  - audio
+  - video
+- id: UChoR3_5ZTj3TS12ub1GHw3Q
+  collector: youtube
+  name: 新知
+  channel_id: UChoR3_5ZTj3TS12ub1GHw3Q
+  mode:
+  - subtitle
+  - video
+- id: UCc0K-eBV3blWsg2PWlrbdBg
+  collector: youtube
+  name: 程序媛小白
+  channel_id: UCc0K-eBV3blWsg2PWlrbdBg
+  mode:
+  - subtitle
+  - video
+- id: UC4GFL56UB1AmyCEvzqpvSAw
+  collector: youtube
+  name: 我是阿众
+  channel_id: UC4GFL56UB1AmyCEvzqpvSAw
+  mode:
+  - subtitle
+  - video
+- id: UCgV1t5fHFvAVPyprEWvuIzg
+  collector: youtube
+  name: 爱分享
+  channel_id: UCgV1t5fHFvAVPyprEWvuIzg
+  mode:
+  - subtitle
+  - video
+- id: UCbCCUH8S3yhlm7__rhxR2QQ
+  collector: youtube
+  name: 不良林
+  channel_id: UCbCCUH8S3yhlm7__rhxR2QQ
+  mode:
+  - subtitle
+  - video
+- id: UCR7Up1tdiE7lu9xjA-OMltA
+  collector: youtube
+  name: 影享者
+  channel_id: UCR7Up1tdiE7lu9xjA-OMltA
+  mode:
+  - subtitle
+  - video
+- id: UCiZ-vPsF_30ZyEBRfOYnsdg
+  collector: youtube
+  name: 科技猎奇
+  channel_id: UCiZ-vPsF_30ZyEBRfOYnsdg
+  mode:
+  - subtitle
+  - video
+- id: UCQoagx4VHBw3HkAyzvKEEBA
+  collector: youtube
+  name: 科技共享
+  channel_id: UCQoagx4VHBw3HkAyzvKEEBA
+  mode:
+  - subtitle
+  - video
+- id: UCffPrldpcuZNeYbzeZ8udxg
+  collector: youtube
+  name: 数码解码
+  channel_id: UCffPrldpcuZNeYbzeZ8udxg
+  mode:
+  - subtitle
+  - video
+- id: UC9vwELYqSedcjU50D7IiYkw
+  collector: youtube
+  name: 疯狂赚钱实验室
+  channel_id: UC9vwELYqSedcjU50D7IiYkw
+  mode:
+  - subtitle
+  - video
+- id: UCJ7O8Cf9lJnBxnoc2pl2_uA
+  collector: youtube
+  name: 艾特科技
+  channel_id: UCJ7O8Cf9lJnBxnoc2pl2_uA
+  mode:
+  - subtitle
+  - video
+- id: UCUXv8OhSFFQRJGg_dO55XrQ
+  collector: youtube
+  name: 墙后立方体
+  channel_id: UCUXv8OhSFFQRJGg_dO55XrQ
+  mode:
+  - subtitle
+  - video
+- id: UCykdQvoM9Fw2nO-58iEsvrw
+  collector: youtube
+  name: 边境中文说
+  channel_id: UCykdQvoM9Fw2nO-58iEsvrw
+  mode:
+  - subtitle
+  - video
+- id: UCCeBr_ypzzFobTC7keWUbDg
+  collector: youtube
+  name: 李大可爱玩
+  channel_id: UCCeBr_ypzzFobTC7keWUbDg
+  mode:
+  - video
+  - audio
+- id: UCOiu59jL8MFIqq-HkIKCKFg
+  collector: youtube
+  name: 塔科女子
+  channel_id: UCOiu59jL8MFIqq-HkIKCKFg
+  mode:
+  - video
+  - audio
+- id: UCBUH38E0ngqvmTqdchWunwQ
+  collector: youtube
+  name: 美投讲美股
+  channel_id: UCBUH38E0ngqvmTqdchWunwQ
+  mode:
+  - audio
+- id: UCKV2yWPB3wn0RTZh3cTD8YA
+  collector: youtube
+  name: 硅谷101
+  channel_id: UCKV2yWPB3wn0RTZh3cTD8YA
+  mode:
+  - audio
+- id: UCFDMMIHbtRdrVhHlGXVzApA
+  collector: youtube
+  name: 老周横眉
+  channel_id: UCFDMMIHbtRdrVhHlGXVzApA
+  mode:
+  - audio
+- id: UCmajVvuOjspOA9WtJGquDHA
+  collector: youtube
+  name: 北美王路飞
+  channel_id: UCmajVvuOjspOA9WtJGquDHA
+  mode:
+  - audio
+- id: UCmaQHKSlg9QxMgzifrGFbCg
+  collector: youtube
+  name: 掌柜说历史
+  channel_id: UCmaQHKSlg9QxMgzifrGFbCg
+  mode:
+  - audio
+- id: UCOrcp--cu4Egwdc07X44btA
+  collector: youtube
+  name: 李天豪
+  channel_id: UCOrcp--cu4Egwdc07X44btA
+  mode:
+  - audio
+- id: UC9xRcqG8V6yNi6Hum92EoGg
+  collector: youtube
+  name: 7mlc
+  channel_id: UC9xRcqG8V6yNi6Hum92EoGg
+  mode:
+  - video
+  - audio
+- id: UCU6JLYuerEUb7VrDd4zLihg
+  collector: youtube
+  name: SportsHD
+  channel_id: UCU6JLYuerEUb7VrDd4zLihg
+  mode:
+  - video
+- id: UCorFnMmI4eXS1ftlY4PpTsw
+  collector: youtube
+  name: Pythagoras in Boots
+  channel_id: UCorFnMmI4eXS1ftlY4PpTsw
+  mode:
+  - video
+  - audio
+- id: UCXl4i9dYBrFOabk0xGmbkRA
+  collector: youtube
+  name: Dwarkesh Patel
+  channel_id: UCXl4i9dYBrFOabk0xGmbkRA
+  mode:
+  - audio
+- id: UC9D-nVmcQdCgAGUPBJZcmOA
+  collector: youtube
+  name: 漫士沉思录
+  channel_id: UC9D-nVmcQdCgAGUPBJZcmOA
+  mode:
+  - video
+  - audio
+- id: UCKJvfb-6icHloy6MBpHg9aw
+  collector: youtube
+  name: 毕导 THU
+  channel_id: UCKJvfb-6icHloy6MBpHg9aw
+  mode:
+  - video
+  - audio
+- id: UClLEMac0ZjZCsVOTiaBtJBg
+  collector: youtube
+  name: 芳斯塔芙
+  channel_id: UClLEMac0ZjZCsVOTiaBtJBg
+  mode:
+  - video
+  - audio
+- id: UCP5Kd0smdWe9H_bDH-73c6Q
+  collector: youtube
+  name: 何同学
+  channel_id: UCP5Kd0smdWe9H_bDH-73c6Q
+  mode:
+  - video
+  - audio
+- id: UC3ScyryU9Oy9Wse3a8OAmYQ
+  collector: youtube
+  name: Frontline PBS
+  channel_id: UC3ScyryU9Oy9Wse3a8OAmYQ
+  mode:
+  - video
+  - audio
+- id: UCQtwvRQWnT5Buh9hpvNNryQ
+  collector: youtube
+  name: 柴知道
+  channel_id: UCQtwvRQWnT5Buh9hpvNNryQ
+  mode:
+  - audio
+- id: UCJ1zX4FZA15dwE2olLAO3-w
+  collector: youtube
+  name: IC实验室
+  channel_id: UCJ1zX4FZA15dwE2olLAO3-w
+  mode:
+  - audio
+- id: UCpC2D7JdcB8nlfzhX08i7fg
+  collector: youtube
+  name: VEXILLA 潮時務所
+  channel_id: UCpC2D7JdcB8nlfzhX08i7fg
+  mode:
+  - audio
+- id: UC3411UsjUC2t-Xfr1gwIhzg
+  collector: youtube
+  name: 马司库
+  channel_id: UC3411UsjUC2t-Xfr1gwIhzg
+  mode:
+  - audio
+- id: UCQlsPZL9hFasMEX7ywG_sfQ
+  collector: youtube
+  name: Stan的聊政事儿频道
+  channel_id: UCQlsPZL9hFasMEX7ywG_sfQ
+  mode:
+  - audio
+- id: UCvTe3Z7TZsjGzUERx4Ce6zA
+  collector: youtube
+  name: 摄徒日记
+  channel_id: UCvTe3Z7TZsjGzUERx4Ce6zA
+  mode:
+  - audio
+- id: UCPNfoYdMopKZKlaTB92g-QQ
+  collector: youtube
+  name: 小叔TV
+  channel_id: UCPNfoYdMopKZKlaTB92g-QQ
+  mode:
+  - video
+  - audio
+- id: UCBKDRq35-L8xev4O7ZqBeLg
+  collector: youtube
+  name: 王志安
+  channel_id: UCBKDRq35-L8xev4O7ZqBeLg
+  mode:
+  - audio
+- id: UCr_F4Y9iboUKlg_ZPm4jkVQ
+  collector: youtube
+  name: 老梁
+  channel_id: UCr_F4Y9iboUKlg_ZPm4jkVQ
+  mode:
+  - audio
+- id: UC8gZZWIWmBuCb_gzC8DUrvw
+  collector: youtube
+  name: 老厉害
+  channel_id: UC8gZZWIWmBuCb_gzC8DUrvw
+  mode:
+  - video
+  - audio
+- id: UCduz2zplHaYCAtiaEIcxErw
+  collector: youtube
+  name: 十三要和拳头
+  channel_id: UCduz2zplHaYCAtiaEIcxErw
+  mode:
+  - video
+  - audio
+- id: UCM3O_udrQjPU72oRNVipYBQ
+  collector: youtube
+  name: Mira 004
+  channel_id: UCM3O_udrQjPU72oRNVipYBQ
+  mode:
+  - video
+  - audio
+- id: UC5BC7UNoExVELezGVlV_bYg
+  collector: youtube
+  name: Jason-老湿
+  channel_id: UC5BC7UNoExVELezGVlV_bYg
+  mode:
+  - audio
+- id: UCIlv2zQgmulRhEa1yCGLhpg
+  collector: youtube
+  name: 三度c
+  channel_id: UCIlv2zQgmulRhEa1yCGLhpg
+  mode:
+  - video
+  - audio
+- id: UC2pXkPVfSKPFViEIvsGNuMA
+  collector: youtube
+  name: Funny Lulu 2.0
+  channel_id: UC2pXkPVfSKPFViEIvsGNuMA
+  mode:
+  - video
+  - audio
+- id: UCk5yPS6FfbJjeaY-PwczPvw
+  collector: youtube
+  name: 11区小豪的故事
+  channel_id: UCk5yPS6FfbJjeaY-PwczPvw
+  mode:
+  - video
+  - audio
+- id: UCjeo-SCLqpLjidXiTNRVvVA
+  collector: youtube
+  name: 金毛评测犬
+  channel_id: UCjeo-SCLqpLjidXiTNRVvVA
+  mode:
+  - video
+  - audio
+- id: UCAYKS2PYe9Dv6Gd4OjgwjQg
+  collector: youtube
+  name: 大碗拿铁
+  channel_id: UCAYKS2PYe9Dv6Gd4OjgwjQg
+  mode:
+  - video
+  - audio
+- id: UCgo_-fjJxnLwwwq5dSY72rg
+  collector: youtube
+  name: 自说自话的总裁
+  channel_id: UCgo_-fjJxnLwwwq5dSY72rg
+  mode:
+  - audio
+- id: UCsBYq6iSNLIpwr5X2sPmuHQ
+  collector: youtube
+  name: Ellen 李
+  channel_id: UCsBYq6iSNLIpwr5X2sPmuHQ
+  mode:
+  - audio
+- id: UC-8qeOjUEf4F9tJO5QGviDg
+  collector: youtube
+  name: 人性黑書
+  channel_id: UC-8qeOjUEf4F9tJO5QGviDg
+  mode:
+  - subtitle
+- id: UC820rtkN9apWeN5t9GKz8lw
+  collector: youtube
+  name: 泰哥是只小暖猫
+  channel_id: UC820rtkN9apWeN5t9GKz8lw
+  mode:
+  - video
+  - audio
+- id: UCw2W7GIqJNB-UMUxncnMuiw
+  collector: youtube
+  name: 黄阿玛的后宫生活
+  channel_id: UCw2W7GIqJNB-UMUxncnMuiw
+  mode:
+  - video
+  - audio
+- id: UCUnvudhyaywzo8gygpURLLg
+  collector: youtube
+  name: 一只笨鼠
+  channel_id: UCUnvudhyaywzo8gygpURLLg
+  mode:
+  - video
+  - audio
+- id: UCaAXpJRNswRKICOGGdGRpWA
+  collector: youtube
+  name: 张八筒
+  channel_id: UCaAXpJRNswRKICOGGdGRpWA
+  mode:
+  - video
+  - audio
+- id: UC8gKBuEj6LZSz42TFvRILAg
+  collector: youtube
+  name: 做我的猫
+  channel_id: UC8gKBuEj6LZSz42TFvRILAg
+  mode:
+  - video
+  - audio
+- id: UCtiFLElUzYjbkPTSGqBn9IQ
+  collector: youtube
+  name: 凯哥带你撩妹
+  channel_id: UCtiFLElUzYjbkPTSGqBn9IQ
+  mode:
+  - subtitle
+- id: UCJ5B2TYnDep7ToycB87AoOA
+  collector: youtube
+  name: 凯南教聊天
+  channel_id: UCJ5B2TYnDep7ToycB87AoOA
+  mode:
+  - subtitle
+- id: UCdw6TpsPcl2vgYdVyv_9CUg
+  collector: youtube
+  name: 凯哥教撩妹
+  channel_id: UCdw6TpsPcl2vgYdVyv_9CUg
+  mode:
+  - subtitle
+- id: UCjD4XGxZRvCusBrYUUQLeEw
+  collector: youtube
+  name: 凯哥带你脱单
+  channel_id: UCjD4XGxZRvCusBrYUUQLeEw
+  mode:
+  - subtitle
+- id: UCqWNOHjgfL8ADEdXGznzwUw
+  collector: youtube
+  name: 悦耳音乐酱
+  channel_id: UCqWNOHjgfL8ADEdXGznzwUw
+  mode:
+  - audio
+- id: UCIgUbcReolYR_R4-p54iomg
+  collector: youtube
+  name: 妙音人
+  channel_id: UCIgUbcReolYR_R4-p54iomg
+  mode:
+  - audio
+- id: UCQnmZZUKvpY3IVSGf44MVVg
+  collector: youtube
+  name: FISH13
+  channel_id: UCQnmZZUKvpY3IVSGf44MVVg
+  mode:
+  - video
+  - audio

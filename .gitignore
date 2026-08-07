@@ -7,4 +7,10 @@ __pycache__/
 out_*.html
 out_*.txt
 out_*.json
-out_report_pdfs/
+out_*.zip
+papers.zip
+reports.zip
+
+# geoip: generated output only ever lives on the `release` branch,
+# never committed to main
+geoip/dist/

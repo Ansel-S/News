@@ -57,9 +57,17 @@ jobs:
 
       - name: Read daily subject
         id: subject
-        run: echo "value=$(cat out_daily_subject.txt)" >> "$GITHUB_OUTPUT"
+        run: |
+          if [ -f out_daily.html ] && [ -f out_daily_subject.txt ]; then
+            echo "send=true" >> "$GITHUB_OUTPUT"
+            echo "value=$(cat out_daily_subject.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "send=false" >> "$GITHUB_OUTPUT"
+            echo "nothing to send today — skipping email"
+          fi
 
       - name: Send daily email
+        if: steps.subject.outputs.send == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com

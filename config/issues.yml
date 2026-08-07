@@ -1,0 +1,46 @@
+issues:
+  daily:
+    include:
+    - topic: culture.music
+      collector: rss
+    - topic: digest.ai
+      collector: rss
+    - topic: digest.economics
+      collector: rss
+    - topic: digest.engineering
+      collector: rss
+    - topic: digest.podcast
+      collector: rss
+    - topic: digest.tech
+      collector: rss
+    - topic: news.tech
+      collector: hn
+  dive_weekly:
+    include:
+    - topic: essay.general
+      collector: rss
+  extra:
+    include:
+    - source: hellogithub
+    - source: ruanyf-weekly
+    - source: tldr-dev
+    - source: tldr-tech
+  paper_weekly:
+    include:
+    - topic: research.papers
+      collector: rss
+    - topic: research.science
+      collector: rss
+  report_monthly:
+    include:
+    - topic: research.think-tanks
+      collector: rss
+  yt_weekly:
+    include:
+    - collector: youtube
+  zen_weekly:
+    include:
+    - topic: culture.curiosity
+      collector: rss
+    - topic: culture.digital-life
+      collector: rss

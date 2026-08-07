@@ -37,9 +37,17 @@ jobs:
 
       - name: Read subject
         id: subject
-        run: echo "value=$(cat out_dive_subject.txt)" >> "$GITHUB_OUTPUT"
+        run: |
+          if [ -f out_dive.html ] && [ -f out_dive_subject.txt ]; then
+            echo "send=true" >> "$GITHUB_OUTPUT"
+            echo "value=$(cat out_dive_subject.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "send=false" >> "$GITHUB_OUTPUT"
+            echo "nothing to send this week — skipping email"
+          fi
 
       - name: Send email
+        if: steps.subject.outputs.send == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -51,7 +59,6 @@ jobs:
           from: Dewsletter <${{ secrets.SMTP_USER }}>
           subject: ${{ steps.subject.outputs.value }}
           html_body: file://out_dive.html
-          attachments: database/dive.db
 
       - name: Commit database (LFS)
         continue-on-error: true

@@ -1,34 +1,30 @@
 """
 render_report.py — Report monthly (1st of each month)
-Email: title list only. PDFs stored in report.db are written to
-out_report_pdfs/ + a manifest, for the workflow to attach.
+Email: title list only. PDFs stored in report.db are bundled into a single
+reports.zip (previously: attached as individual files by title, which is
+exactly what caused a real send to exceed Gmail's message size limit with
+19 reports attached at once — see the Report Monthly workflow's failure
+log). Entries with no PDF (fetch failed or none found) are omitted from
+the zip but still listed in the email.
 """
 from __future__ import annotations
-import json
 from pathlib import Path
-from render_base import render_simple_digest, block_title_only
+from render_base import render_simple_digest, block_title_only, export_pdf_zip
 
-ISSUE_TYPE  = "report_monthly"
-ROOT        = Path(__file__).resolve().parent.parent
-OUT_PDF_DIR = ROOT / "out_report_pdfs"
-OUT_PDF_MANIFEST = ROOT / "out_report_pdf_manifest.json"
+ISSUE_TYPE = "report_monthly"
+ROOT       = Path(__file__).resolve().parent.parent
+OUT_ZIP    = ROOT / "reports.zip"
 
 
 def _write_pdfs(rows) -> dict:
-    """pre_hook: write any stored PDF blobs to disk + a manifest, return the
-    file list so summary_fn can report a PDF count."""
-    OUT_PDF_DIR.mkdir(exist_ok=True)
-    pdf_files: list[str] = []
-    for row in rows:
-        if row["pdf_data"]:
-            safe_title = "".join(c if c.isalnum() or c in "-_ " else "_"
-                                 for c in (row["title"] or row["id"]))
-            fname = f"{safe_title[:60]}.pdf"
-            path  = OUT_PDF_DIR / fname
-            path.write_bytes(row["pdf_data"])
-            pdf_files.append(str(path))
-    OUT_PDF_MANIFEST.write_text(json.dumps(pdf_files, indent=2))
-    return {"pdf_files": pdf_files}
+    """pre_hook: bundle any stored PDF blobs into reports.zip, return the
+    count so summary_fn can report it. Deletes the zip again if it ended up
+    empty, so the workflow's `if -f reports.zip` check correctly skips
+    attaching a pointless empty archive."""
+    pdf_count, skipped = export_pdf_zip(rows, OUT_ZIP)
+    if pdf_count == 0 and OUT_ZIP.exists():
+        OUT_ZIP.unlink()
+    return {"pdf_count": pdf_count, "pdf_skipped": skipped}
 
 
 def _dispatch(row, is_first: bool) -> str:
@@ -36,8 +32,11 @@ def _dispatch(row, is_first: bool) -> str:
 
 
 def _summary(rows, extra) -> str:
-    pdf_files = extra.get("pdf_files", [])
-    suffix = f" &middot; {len(pdf_files)} PDFs attached" if pdf_files else ""
+    pdf_count = extra.get("pdf_count", 0)
+    skipped   = extra.get("pdf_skipped", 0)
+    suffix = f" &middot; {pdf_count} PDFs attached" if pdf_count else ""
+    if skipped:
+        suffix += f" ({skipped} omitted to keep the email under size limits)"
     return f"{len(rows)} reports this month{suffix}"
 
 

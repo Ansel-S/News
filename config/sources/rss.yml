@@ -1,0 +1,205 @@
+sources:
+- id: tldr-tech
+  collector: rss
+  name: TLDR Tech
+  url: https://tldr.tech/api/rss/tech
+  display_mode: full
+  fetch: live
+- id: tldr-dev
+  collector: rss
+  name: TLDR Dev
+  url: https://tldr.tech/api/rss/dev
+  display_mode: full
+  fetch: live
+- id: ruanyf-weekly
+  collector: rss
+  name: Ruanyf Weekly
+  url: https://feeds.feedburner.com/ruanyifeng
+  display_mode: full
+- id: github-trending-weekly
+  collector: rss
+  name: GitHub Trending Weekly
+  url: https://rsshub.app/github/trending/weekly/any
+  display_mode: repo_card
+- id: hellogithub
+  collector: rss
+  name: HelloGitHub
+  url: https://hellogithub.com/rss
+  display_mode: full
+- id: billboard-hot-100
+  collector: rss
+  name: Billboard Hot 100
+  url: FILL_ME
+  display_mode: chart_only
+  fetch: live
+- id: bandcamp-daily
+  collector: rss
+  name: Bandcamp Daily
+  url: https://daily.bandcamp.com/feed
+  display_mode: title_excerpt
+  fetch: live
+- id: the-daily-nyt
+  collector: rss
+  name: The Daily NYT
+  url: https://feeds.simplecast.com/54nAGcIl
+  display_mode: title_excerpt
+- id: last-week-in-ai
+  collector: rss
+  name: Last Week in AI
+  url: https://lastweekin.ai/feed
+  display_mode: title_excerpt
+- id: stripe-engineering
+  collector: rss
+  name: Stripe Engineering
+  url: https://stripe.com/blog/feed/rss
+  display_mode: title_excerpt
+- id: our-world-in-data
+  collector: rss
+  name: Our World in Data
+  url: https://ourworldindata.org/atom.xml
+  display_mode: title_excerpt
+- id: fred-blog
+  collector: rss
+  name: FRED Blog
+  url: https://fredblog.stlouisfed.org/feed/
+  display_mode: title_excerpt
+- id: fed-notes
+  collector: rss
+  name: FED Notes
+  url: https://www.federalreserve.gov/feeds/feds_notes.xml
+  display_mode: title_excerpt
+- id: noahpinion
+  collector: rss
+  name: Noahpinion
+  url: https://www.noahpinion.blog/feed
+  display_mode: title_excerpt
+- id: one-useful-thing
+  collector: rss
+  name: One Useful Thing
+  url: https://www.oneusefulthing.org/feed
+  display_mode: title_excerpt
+- id: wait-but-why
+  collector: rss
+  name: Wait But Why
+  url: https://waitbutwhy.com/feed
+  display_mode: title_excerpt
+- id: the-marginalian
+  collector: rss
+  name: The Marginalian
+  url: https://www.themarginalian.org/feed/
+  display_mode: title_excerpt
+- id: lenny-s-newsletter
+  collector: rss
+  name: Lenny's Newsletter
+  url: https://www.lennysnewsletter.com/feed
+  display_mode: title_excerpt
+- id: acm-queue
+  collector: rss
+  name: ACM Queue
+  url: https://queue.acm.org/rss/feeds/queuecontent.xml
+  display_mode: title_only
+- id: martin-fowler
+  collector: rss
+  name: Martin Fowler
+  url: https://martinfowler.com/feed.atom
+  display_mode: title_only
+- id: cloudflare-blog
+  collector: rss
+  name: Cloudflare Blog
+  url: https://blog.cloudflare.com/rss/
+  display_mode: title_only
+- id: quanta-magazine
+  collector: rss
+  name: Quanta Magazine
+  url: https://www.quantamagazine.org/feed/
+  display_mode: title_only
+- id: aqr-research
+  collector: rss
+  name: AQR Research
+  url: FILL_ME
+  display_mode: title_only
+- id: anthropic-research
+  collector: rss
+  name: Anthropic Research
+  url: FILL_ME
+  display_mode: title_only
+- id: apple-machine-learning-research
+  collector: rss
+  name: Apple Machine Learning Research
+  url: https://machinelearning.apple.com/rss.xml
+  display_mode: title_only
+- id: nist-ai
+  collector: rss
+  name: NIST AI
+  url: FILL_ME
+  display_mode: title_only
+- id: bis-statistics
+  collector: rss
+  name: BIS Statistics
+  url: https://www.bis.org/doclist/all_statistics.rss
+  display_mode: title_only
+- id: bis-papers
+  collector: rss
+  name: BIS Papers
+  url: https://www.bis.org/doclist/reshub_papers.rss
+  display_mode: title_only
+- id: arxiv-cs-ai
+  collector: rss
+  name: Arxiv CS.AI
+  url: https://rss.arxiv.org/rss/cs.AI
+  pdf: arxiv
+- id: rand
+  collector: rss
+  name: RAND
+  url: https://www.rand.org/pubs/new.xml
+  display_mode: title_only
+  pdf: scrape
+- id: rand-commentary
+  collector: rss
+  name: RAND Commentary
+  url: https://www.rand.org/pubs/commentary.xml
+  display_mode: title_only
+  pdf: scrape
+- id: rand-articles
+  collector: rss
+  name: RAND Articles
+  url: https://www.rand.org/pubs/articles.xml
+  display_mode: title_only
+  pdf: scrape
+- id: peterson-institute
+  collector: rss
+  name: Peterson Institute
+  url: https://www.piie.com/rss/update.xml
+  display_mode: title_only
+  pdf: scrape
+- id: epoch-ai
+  collector: rss
+  name: Epoch AI
+  url: https://epochai.substack.com/feed
+  display_mode: title_only
+  pdf: scrape
+- id: sspai
+  collector: rss
+  name: sspai
+  url: https://sspai.com/feed
+  display_mode: title_excerpt
+- id: ifanr
+  collector: rss
+  name: ifanr
+  url: https://www.ifanr.com/feed
+  display_mode: title_excerpt
+- id: innei
+  collector: rss
+  name: Innei
+  url: https://innei.in/feed
+  display_mode: title_excerpt
+- id: bubbles-town
+  collector: rss
+  name: Bubbles Town
+  url: https://bubbles.town/weekly/feed
+  display_mode: full
+- id: today-i-found-out
+  collector: rss
+  name: Today I Found Out
+  url: https://www.todayifoundout.com/index.php/feed/
+  display_mode: title_excerpt

@@ -29,28 +29,35 @@ jobs:
       - name: Init database
         run: python scripts/db_init.py report
 
-      - name: Ingest RSS + download PDFs (report.db)
+      - name: Ingest RSS + scraped sources, download PDFs (report.db)
         run: python scripts/ingest_rss.py report
 
-      - name: Render HTML + export PDFs
+      - name: Render HTML + build reports.zip
         run: python scripts/render_report.py
 
       - name: Read subject
         id: subject
-        run: echo "value=$(cat out_report_subject.txt)" >> "$GITHUB_OUTPUT"
+        run: |
+          if [ -f out_report.html ] && [ -f out_report_subject.txt ]; then
+            echo "send=true" >> "$GITHUB_OUTPUT"
+            echo "value=$(cat out_report_subject.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "send=false" >> "$GITHUB_OUTPUT"
+            echo "nothing to send this month — skipping email"
+          fi
 
-      - name: Build PDF attachment list
+      - name: Build attachment list
+        if: steps.subject.outputs.send == 'true'
         id: attachments
         run: |
-          files=$(find out_report_pdfs -name "*.pdf" 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-          # always include report.db; append PDFs if any
-          if [ -n "$files" ]; then
-            echo "value=database/report.db,${files}" >> "$GITHUB_OUTPUT"
+          if [ -f reports.zip ]; then
+            echo "value=reports.zip" >> "$GITHUB_OUTPUT"
           else
-            echo "value=database/report.db" >> "$GITHUB_OUTPUT"
+            echo "value=" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Send email
+        if: steps.subject.outputs.send == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com

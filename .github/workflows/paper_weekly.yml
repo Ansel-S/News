@@ -37,9 +37,27 @@ jobs:
 
       - name: Read subject
         id: subject
-        run: echo "value=$(cat out_paper_subject.txt)" >> "$GITHUB_OUTPUT"
+        run: |
+          if [ -f out_paper.html ] && [ -f out_paper_subject.txt ]; then
+            echo "send=true" >> "$GITHUB_OUTPUT"
+            echo "value=$(cat out_paper_subject.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "send=false" >> "$GITHUB_OUTPUT"
+            echo "nothing to send this week — skipping email"
+          fi
+
+      - name: Build attachment list
+        if: steps.subject.outputs.send == 'true'
+        id: attachments
+        run: |
+          if [ -f papers.zip ]; then
+            echo "value=papers.zip" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Send email
+        if: steps.subject.outputs.send == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -51,7 +69,7 @@ jobs:
           from: Dewsletter <${{ secrets.SMTP_USER }}>
           subject: ${{ steps.subject.outputs.value }}
           html_body: file://out_paper.html
-          attachments: database/paper.db
+          attachments: ${{ steps.attachments.outputs.value }}
 
       - name: Commit database (LFS)
         continue-on-error: true

@@ -8,8 +8,10 @@ generic set of functions (item_exists / insert_item / get_unpushed /
 mark_pushed) covers core.db, dive.db, zen.db, paper.db, report.db, hn.db,
 and youtube.db's yt_items / yt_media_items, just by passing a different
 `table` name. Each db then gets a small number of extra functions only for
-what's genuinely unique to it: report.db's PDF blob, hn.db's score/by/
-descendants, youtube.db's dedup table + media-download-link table.
+what's genuinely unique to it: report.db's and paper.db's PDF blob columns
+(pdf_url/pdf_data — paper.db's are populated by arXiv's direct PDF
+download, report.db's by scraping each entry's landing page), hn.db's
+score/by/descendants, youtube.db's dedup table + media-download-link table.
 """
 from __future__ import annotations
 import hashlib
@@ -166,6 +168,30 @@ def insert_report(
     )
 
 
+# ── paper.db — arXiv PDF download, own path from report.db's generic-thinktank
+# PDF-scraping logic (find_pdf_link etc). arXiv URLs are predictable
+# (abs/{id} -> pdf/{id}), so no HTML scraping is needed to find the link.
+# Non-arXiv paper.db sources (ACM Queue, Quanta, etc) still go through
+# insert_item()/item_exists() directly with table="items" and no PDF — same
+# title+abstract-only shape as before.
+
+def paper_exists(url: str) -> bool:
+    return item_exists("paper", url, table="items")
+
+
+def insert_paper(
+    *, source_id: str, feed_key: str, source_name: str,
+    title: str, content: str | None, pdf_url: str | None, pdf_data: bytes | None,
+    created_at: str,
+) -> None:
+    insert_item(
+        "paper", source_id=source_id, feed_key=feed_key, source_name=source_name,
+        title=title, content=content, created_at=created_at, table="items",
+        display_mode="title_only",
+        extra_columns={"pdf_url": pdf_url, "pdf_data": pdf_data},
+    )
+
+
 # ── hn.db — adds score/by/descendants on top of the generic items shape ─────
 
 def hn_exists(hn_id: str) -> bool:
@@ -222,14 +248,18 @@ def insert_yt(
     is the table render_yt.py reads for the weekly email + subtitle zip.
     Videos with no subtitle (pure video/audio-mode channels) are NOT written
     here, keeping youtube.db limited to content that's actually readable.
-    Dedup for those videos is still handled separately via mark_yt_seen()."""
+    Dedup for those videos is still handled separately via mark_yt_seen().
+    fetched_full is always 1 here (not left at its column default of 0) —
+    a yt_items row existing at all already means the subtitle fetch
+    succeeded, by the early-return above."""
     if not subtitle:
         return
     insert_item(
         "youtube", source_id=video_url, feed_key=feed_key, source_name=channel_name,
         title=title, content=subtitle, created_at=published_at, table="yt_items",
         display_mode="title_excerpt",
-        extra_columns={"video_id": video_id, "channel_id": channel_id, "mode": mode},
+        extra_columns={"video_id": video_id, "channel_id": channel_id, "mode": mode,
+                       "fetched_full": 1},
     )
 
 

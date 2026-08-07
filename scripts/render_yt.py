@@ -97,7 +97,11 @@ def main() -> None:
     # are title + download-link only and are shown inline via video_row().
     # yt_items already uses the standard items field names (source_id,
     # source_name, content, created_at), so no custom key mapping needed.
-    zip_count = export_full_articles_zip(sub_rows, OUT_ZIP) if sub_rows else 0
+    # fetched_full is always 1 for yt_items (subtitle fetch is the "full
+    # fetch" here — see db_utils.insert_yt), but filtering on it explicitly
+    # keeps this consistent with how daily/extra decide zip eligibility.
+    zip_rows  = [r for r in sub_rows if r["fetched_full"]]
+    zip_count = export_full_articles_zip(zip_rows, OUT_ZIP) if zip_rows else 0
 
     parts = [
         f'<p style="margin:0 0 32px;font-size:13px;color:{MUTED}">'

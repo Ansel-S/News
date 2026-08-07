@@ -56,7 +56,19 @@ jobs:
       - name: Render HTML (also writes yt_subtitles.zip)
         run: python scripts/render_yt.py
 
+      - name: Read subject
+        id: subject
+        run: |
+          if [ -f out_yt.html ] && [ -f out_yt_subject.txt ]; then
+            echo "send=true" >> "$GITHUB_OUTPUT"
+            echo "value=$(cat out_yt_subject.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "send=false" >> "$GITHUB_OUTPUT"
+            echo "nothing to send this week — skipping email"
+          fi
+
       - name: Ensure zip attachment exists
+        if: steps.subject.outputs.send == 'true'
         run: |
           if [ ! -f out_yt.zip ]; then
             echo "no subtitles this week" > _placeholder.txt
@@ -64,11 +76,8 @@ jobs:
             rm _placeholder.txt
           fi
 
-      - name: Read subject
-        id: subject
-        run: echo "value=$(cat out_yt_subject.txt)" >> "$GITHUB_OUTPUT"
-
       - name: Send email
+        if: steps.subject.outputs.send == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
