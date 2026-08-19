@@ -1,4 +1,12 @@
-name: Paper Weekly
+name: Research Weekly
+
+# Replaces the old Paper Weekly + Report Monthly (merged per DESIGN.md
+# §4.4, resolved in Phase 6). Not a candidate for the _send-issue.yml
+# reusable workflow, since this issue genuinely spans two databases:
+# content.db's arXiv/paper-topic rows (already ingested daily via
+# daily.yml — see its own comment) and report.db's thinktank reports
+# (ingested here, since report.db isn't part of the Phase 5 merge and has
+# no other workflow feeding it).
 
 on:
   schedule:
@@ -26,21 +34,23 @@ jobs:
       - name: Install dependencies
         run: pip install feedparser requests trafilatura pyyaml
 
-      - name: Init database
-        run: python scripts/db_init.py paper
+      - name: Init databases
+        run: python scripts/db/db_init.py content report
 
-      - name: Ingest RSS (paper.db)
-        run: python scripts/ingest_rss.py paper
+      - name: Ingest RSS + scraped sources, download PDFs (report.db)
+        # content.db's papers were already ingested by daily.yml — this
+        # only needs to cover report.db, which nothing else touches.
+        run: python scripts/ingest/ingest_rss.py report
 
-      - name: Render HTML
-        run: python scripts/render_paper.py
+      - name: Render HTML + build research.zip
+        run: python scripts/render/render_research.py
 
       - name: Read subject
         id: subject
         run: |
-          if [ -f out_paper.html ] && [ -f out_paper_subject.txt ]; then
+          if [ -f out_research.html ] && [ -f out_research_subject.txt ]; then
             echo "send=true" >> "$GITHUB_OUTPUT"
-            echo "value=$(cat out_paper_subject.txt)" >> "$GITHUB_OUTPUT"
+            echo "value=$(cat out_research_subject.txt)" >> "$GITHUB_OUTPUT"
           else
             echo "send=false" >> "$GITHUB_OUTPUT"
             echo "nothing to send this week — skipping email"
@@ -50,8 +60,8 @@ jobs:
         if: steps.subject.outputs.send == 'true'
         id: attachments
         run: |
-          if [ -f papers.zip ]; then
-            echo "value=papers.zip" >> "$GITHUB_OUTPUT"
+          if [ -f research.zip ]; then
+            echo "value=research.zip" >> "$GITHUB_OUTPUT"
           else
             echo "value=" >> "$GITHUB_OUTPUT"
           fi
@@ -68,14 +78,14 @@ jobs:
           to: ${{ secrets.TO_EMAIL }}
           from: Dewsletter <${{ secrets.SMTP_USER }}>
           subject: ${{ steps.subject.outputs.value }}
-          html_body: file://out_paper.html
+          html_body: file://out_research.html
           attachments: ${{ steps.attachments.outputs.value }}
 
-      - name: Commit database (LFS)
+      - name: Commit databases (LFS)
         continue-on-error: true
         run: |
           git config user.name  github-actions
           git config user.email github-actions@github.com
-          git add database/paper.db
-          git commit -m "paper weekly · $(date -u +'%Y-%m-%d')" || true
+          git add database/content.db database/report.db
+          git commit -m "research weekly · $(date -u +'%Y-%m-%d')" || true
           git push || true

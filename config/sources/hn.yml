@@ -5,3 +5,11 @@ sources:
   max_age_hours: 48
   top_n: 200
   workers: 10
+  extract_mode: normal
+  email_mode: full
+  db: hn
+  table: hn_items
+  issues:
+  - daily
+  order:
+    daily: 7

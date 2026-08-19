@@ -2,18 +2,23 @@
 db_utils.py — Shared database read/write utilities for all databases
 
 DESIGN: every db's main table shares the `items` shape (id, source_id,
-feed_key, source_name, display_mode, title, content, created_at,
-ingested_at, word_count, read_minutes) — see schema.sql. That means one
-generic set of functions (item_exists / insert_item / get_unpushed /
-mark_pushed) covers core.db, dive.db, zen.db, paper.db, report.db, hn.db,
-and youtube.db's yt_items / yt_media_items, just by passing a different
+feed_key, source_name, source_key, extract_mode, email_mode, title,
+content, created_at, ingested_at, read_minutes) — see schema.sql. That
+means one generic set of functions (item_exists / insert_item /
+get_unpushed / mark_pushed) covers content.db, report.db, hn.db, and
+youtube.db's yt_items / yt_media_items, just by passing a different `db`/
 `table` name. Each db then gets a small number of extra functions only for
-what's genuinely unique to it: report.db's and paper.db's PDF blob columns
-(pdf_url/pdf_data — paper.db's are populated by arXiv's direct PDF
-download, report.db's by scraping each entry's landing page), hn.db's
-score/by/descendants, youtube.db's dedup table + media-download-link table.
+what's genuinely unique to it: report.db's and content.db's PDF blob
+columns, hn.db's score/by/descendants, youtube.db's dedup table +
+media-download-link table.
 """
 from __future__ import annotations
+
+import sys as _sys
+from pathlib import Path as _Path
+_SCRIPTS_DIR = _Path(__file__).resolve().parent.parent
+if str(_SCRIPTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_SCRIPTS_DIR))
 import hashlib
 import re
 import sqlite3
@@ -34,14 +39,15 @@ def item_hash(url: str) -> str:
     return hashlib.sha256(url.encode()).hexdigest()
 
 
-def estimate_read(text: str | None) -> tuple[int, int]:
-    """Return (word_count, read_minutes). Chinese: 350 chars/min, English: 250 words/min."""
+def estimate_read(text: str | None) -> int:
+    """Return read_minutes. Chinese: 350 chars/min, English: 250 words/min.
+    (Used to also return word_count — dropped, it was stored on every row
+    but never read anywhere; see db_init.py.)"""
     if not text:
-        return 0, 0
-    zh    = len(re.findall(r"[\u4e00-\u9fff]", text))
-    en    = len(re.findall(r"[a-zA-Z]+", text))
-    mins  = max(1, round((zh / 350) + (en / 250)))
-    return zh + en, mins
+        return 0
+    zh = len(re.findall(r"[\u4e00-\u9fff]", text))
+    en = len(re.findall(r"[a-zA-Z]+", text))
+    return max(1, round((zh / 350) + (en / 250)))
 
 
 def _conn(db: str) -> sqlite3.Connection:
@@ -51,9 +57,9 @@ def _conn(db: str) -> sqlite3.Connection:
     return c
 
 
-# ── Generic items table (core / dive / zen / paper / report / hn / youtube) ──
-# `table` defaults to "items" (core/dive/zen/paper); pass e.g. "hn_items",
-# "report_items", "yt_items", "yt_media_items" for the others.
+# ── Generic items table (content / report / hn / youtube) ──
+# `table` defaults to "items"; pass e.g. "hn_items", "report_items",
+# "yt_items", "yt_media_items" for the others.
 
 def item_exists(db: str, source_id: str, *, table: str = "items") -> bool:
     with _conn(db) as c:
@@ -70,24 +76,45 @@ def insert_item(
     title: str,
     content: str | None,
     created_at: str,
-    display_mode: str = "title_excerpt",
+    email_mode: str = "full",
+    extract_mode: str | None = None,
     table: str = "items",
     id_override: str | None = None,
     extra_columns: dict | None = None,
+    source_key: str | None = None,
 ) -> None:
     """Insert one row into any items-shaped table. `id_override` lets callers
     use a different primary key than sha256(source_id) (e.g. hn.db uses the
     raw HN item id). `extra_columns` adds db-specific columns beyond the
     common items shape (e.g. {"score": 5, "by": "alice"} for hn_items, or
-    {"video_id": "...", "channel_id": "..."} for yt_items)."""
-    wc, rm = estimate_read(content)
+    {"video_id": "...", "channel_id": "..."} for yt_items).
+
+    `email_mode` (full|excerpt|title) controls how much shows in the email
+    body. `extract_mode` (normal|skip) controls whether full-text
+    extraction was attempted at all — genuinely independent of email_mode
+    (e.g. a title-only-displayed source can still be fully fetched and
+    zip-eligible). Only written when the table has the column (report_items
+    has email_mode but not extract_mode — see db_init.py).
+
+    `source_key`: the config/sources/*.yml source id (e.g. "tldr-tech"),
+    NOT the same thing as `feed_key` (the section/grouping label — several
+    sources can share one feed_key). This is what lets issues/builder.py
+    filter a shared table per-issue when more than one issue's sources
+    coexist in the same (db, table)."""
+    rm = estimate_read(content)
     row_id = id_override or item_hash(source_id)
     extra_columns = extra_columns or {}
 
-    cols   = ["id", "source_id", "feed_key", "source_name", "display_mode",
-              "title", "content", "created_at", "ingested_at", "word_count", "read_minutes"]
-    values = [row_id, source_id, feed_key, source_name, display_mode,
-              title, content, created_at, now_iso(), wc, rm]
+    cols   = ["id", "source_id", "feed_key", "source_name", "email_mode",
+              "title", "content", "created_at", "ingested_at", "read_minutes"]
+    values = [row_id, source_id, feed_key, source_name, email_mode,
+              title, content, created_at, now_iso(), rm]
+    if extract_mode is not None:
+        cols.append("extract_mode")
+        values.append(extract_mode)
+    if source_key is not None:
+        cols.append("source_key")
+        values.append(source_key)
     for k, v in extra_columns.items():
         cols.append(k)
         values.append(v)
@@ -125,17 +152,18 @@ def get_unpushed(
     table: str = "items",
     exclude_feed_prefix: str | None = None,
     order_by: str = "created_at DESC",
+    source_keys: set[str] | None = None,
 ) -> list[sqlite3.Row]:
     """All items not yet sent in this issue type.
 
     `table`: which items-shaped table to read (default "items").
     `exclude_feed_prefix`: skip rows whose feed_key starts with this prefix.
-    Needed because this filters by (db, issue_type) alone — rows sharing the
-    same db/table but tagged for a different issue_type (e.g. "extra_daily"
-    rows living in core.db's `items` alongside "daily" rows) would otherwise
-    still be picked up here as long as they've never been pushed under THIS
-    issue_type.
     `order_by`: override sort order (e.g. "score DESC" for hn_items).
+    `source_keys`: restrict to rows whose source_key column is in this set.
+    Used by issues/builder.py when a (db, table) is shared by more than one
+    issue's sources (content.db's items table). Rows written before
+    source_key existed have NULL there and are excluded whenever this
+    filter is used — see migrate_content_db.py's backfill step.
     """
     query = f"""SELECT i.* FROM {table} i
                WHERE NOT EXISTS (
@@ -146,6 +174,10 @@ def get_unpushed(
     if exclude_feed_prefix:
         query += " AND i.feed_key NOT LIKE ?"
         params.append(f"{exclude_feed_prefix}%")
+    if source_keys is not None:
+        placeholders = ",".join("?" * len(source_keys))
+        query += f" AND i.source_key IN ({placeholders})"
+        params.extend(sorted(source_keys))
     query += f" ORDER BY {order_by}"
     with _conn(db) as c:
         return c.execute(query, params).fetchall()
@@ -160,35 +192,39 @@ def report_exists(url: str) -> bool:
 def insert_report(
     *, source_id: str, feed_key: str, source_name: str,
     title: str, pdf_url: str | None, pdf_data: bytes | None, created_at: str,
+    source_key: str | None = None,
 ) -> None:
     insert_item(
         "report", source_id=source_id, feed_key=feed_key, source_name=source_name,
         title=title, content=None, created_at=created_at, table="report_items",
+        email_mode="title",
         extra_columns={"pdf_url": pdf_url, "pdf_data": pdf_data},
+        source_key=source_key,
     )
 
 
-# ── paper.db — arXiv PDF download, own path from report.db's generic-thinktank
-# PDF-scraping logic (find_pdf_link etc). arXiv URLs are predictable
-# (abs/{id} -> pdf/{id}), so no HTML scraping is needed to find the link.
-# Non-arXiv paper.db sources (ACM Queue, Quanta, etc) still go through
-# insert_item()/item_exists() directly with table="items" and no PDF — same
-# title+abstract-only shape as before.
+# ── content.db's arXiv rows — direct PDF download, own path from report.db's
+# generic-thinktank PDF-scraping logic (find_pdf_link etc). arXiv URLs are
+# predictable (abs/{id} -> pdf/{id}), so no HTML scraping is needed to find
+# the link. Non-arXiv paper-topic sources (ACM Queue, Quanta, etc) still go
+# through insert_item()/item_exists() directly with table="items" and no
+# PDF — same title+abstract-only shape as before.
 
 def paper_exists(url: str) -> bool:
-    return item_exists("paper", url, table="items")
+    return item_exists("content", url, table="items")
 
 
 def insert_paper(
     *, source_id: str, feed_key: str, source_name: str,
     title: str, content: str | None, pdf_url: str | None, pdf_data: bytes | None,
-    created_at: str,
+    created_at: str, source_key: str | None = None,
 ) -> None:
     insert_item(
-        "paper", source_id=source_id, feed_key=feed_key, source_name=source_name,
+        "content", source_id=source_id, feed_key=feed_key, source_name=source_name,
         title=title, content=content, created_at=created_at, table="items",
-        display_mode="title_only",
+        email_mode="title", extract_mode="normal",
         extra_columns={"pdf_url": pdf_url, "pdf_data": pdf_data},
+        source_key=source_key,
     )
 
 
@@ -207,7 +243,8 @@ def insert_hn(*, hn_id: str, title: str, url: str | None,
     insert_item(
         "hn", source_id=source_id, feed_key="hn", source_name="Hacker News",
         title=title, content=None, created_at=created_at, table="hn_items",
-        id_override=str(hn_id),
+        id_override=str(hn_id), email_mode="title", extract_mode="normal",
+        source_key="hackernews",
         extra_columns={"external_url": url, "score": score, "by": by, "descendants": descendants},
     )
 
@@ -242,7 +279,7 @@ def mark_yt_seen(video_url: str, video_id: str) -> None:
 def insert_yt(
     *, video_url: str, video_id: str, channel_id: str, channel_name: str,
     feed_key: str, title: str, subtitle: str | None, published_at: str,
-    mode: str = "mixed",
+    mode: str = "mixed", source_key: str | None = None,
 ) -> None:
     """Only writes to yt_items when subtitle text was actually found — this
     is the table render_yt.py reads for the weekly email + subtitle zip.
@@ -257,7 +294,8 @@ def insert_yt(
     insert_item(
         "youtube", source_id=video_url, feed_key=feed_key, source_name=channel_name,
         title=title, content=subtitle, created_at=published_at, table="yt_items",
-        display_mode="title_excerpt",
+        email_mode="excerpt", extract_mode="normal",
+        source_key=source_key or channel_id,
         extra_columns={"video_id": video_id, "channel_id": channel_id, "mode": mode,
                        "fetched_full": 1},
     )
@@ -266,6 +304,7 @@ def insert_yt(
 def insert_yt_media_item(
     *, video_url: str, video_id: str, channel_id: str, channel_name: str,
     feed_key: str, title: str, published_at: str, mode: str = "video",
+    source_key: str | None = None,
 ) -> None:
     """Videos from video/audio-only channels with no subtitle text still need
     a title + download-link row in the weekly email. Written here instead of
@@ -275,7 +314,8 @@ def insert_yt_media_item(
     insert_item(
         "youtube", source_id=video_url, feed_key=feed_key, source_name=channel_name,
         title=title, content=None, created_at=published_at, table="yt_media_items",
-        display_mode="title_only",
+        email_mode="title", extract_mode="skip",
+        source_key=source_key or channel_id,
         extra_columns={"video_id": video_id, "channel_id": channel_id, "mode": mode},
     )
 

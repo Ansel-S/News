@@ -27,16 +27,26 @@ jobs:
         run: pip install feedparser requests trafilatura pyyaml
 
       - name: Init databases
-        run: python scripts/db_init.py core hn
+        run: python scripts/db/db_init.py content hn
 
-      - name: Ingest RSS (core.db)
-        run: python scripts/ingest_rss.py core
+      - name: Ingest RSS (content.db)
+        # Since Phase 5's db merge, content.db holds everything that used
+        # to be split across core.db/dive.db/zen.db/paper.db — so this one
+        # daily ingest run now covers Dive/Zen/Research-topic sources too,
+        # not just Daily/Extra's. dive_weekly/zen_weekly/research_weekly no
+        # longer run their own ingest step (see their workflow files) —
+        # they rely on this having already populated content.db by the
+        # time they render. Deliberate side effect, not an accident: those
+        # sources move from "fetched once a week, right before render" to
+        # "fetched daily" — fresher content, and full-text-fetch load
+        # spreads across every day instead of bursting on render day.
+        run: python scripts/ingest/ingest_rss.py content
 
       - name: Ingest HackerNews (hn.db)
-        run: python scripts/ingest_hn.py
+        run: python scripts/ingest/ingest_hn.py
 
       - name: Render daily HTML
-        run: python scripts/render_daily.py
+        run: python scripts/render/render_daily.py
 
       - name: Ensure daily zip attachment exists
         run: |
@@ -45,15 +55,6 @@ jobs:
             zip out_daily.zip _placeholder.txt
             rm _placeholder.txt
           fi
-
-      - name: Upload today's daily assets to GitHub Release
-        run: |
-          python scripts/upload_daily_release.py \
-            --repo "${{ github.repository }}" \
-            --tag "$(date -u +'%Y-%m-%d')" \
-            out_daily.zip
-        env:
-          GH_TOKEN: ${{ github.token }}
 
       - name: Read daily subject
         id: subject
@@ -82,7 +83,7 @@ jobs:
           attachments: out_daily.zip
 
       - name: Render Extra HTML (TLDR / Ruanyf / HelloGitHub)
-        run: python scripts/render_extra.py
+        run: python scripts/render/render_extra.py
 
       - name: Check if Extra has content
         id: extra_check
@@ -101,16 +102,6 @@ jobs:
             zip out_extra.zip _placeholder.txt
             rm _placeholder.txt
           fi
-
-      - name: Upload today's extra assets to GitHub Release
-        if: steps.extra_check.outputs.has_content == 'true'
-        run: |
-          python scripts/upload_daily_release.py \
-            --repo "${{ github.repository }}" \
-            --tag "$(date -u +'%Y-%m-%d')" \
-            out_extra.zip
-        env:
-          GH_TOKEN: ${{ github.token }}
 
       - name: Read extra subject
         if: steps.extra_check.outputs.has_content == 'true'
@@ -137,6 +128,6 @@ jobs:
         run: |
           git config user.name  github-actions
           git config user.email github-actions@github.com
-          git add database/core.db database/hn.db
+          git add database/content.db database/hn.db
           git commit -m "daily · $(date -u +'%Y-%m-%d')" || true
           git push || true

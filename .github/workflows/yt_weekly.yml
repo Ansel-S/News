@@ -32,10 +32,10 @@ jobs:
         run: pip install feedparser requests pyyaml yt-dlp
 
       - name: Init database
-        run: python scripts/db_init.py youtube
+        run: python scripts/db/db_init.py youtube
 
       - name: Ingest YouTube (subtitles + low-res video/audio per channel mode)
-        run: python scripts/ingest_youtube.py
+        run: python scripts/ingest/ingest_youtube.py
         env:
           YT_WORKERS: "3"
           LOOKBACK_DAYS: "8"
@@ -44,7 +44,7 @@ jobs:
         if: always()
         run: |
           if [ -d media_out ] && [ "$(find media_out -type f ! -name '*.tsv' | wc -l)" -gt 0 ]; then
-            python scripts/upload_yt_release.py \
+            python scripts/release/upload_yt_release.py \
               --repo "${{ github.repository }}" \
               --tag "$(date -u +'%Y-%m-%d')"
           else
@@ -54,7 +54,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       - name: Render HTML (also writes yt_subtitles.zip)
-        run: python scripts/render_yt.py
+        run: python scripts/render/render_yt.py
 
       - name: Read subject
         id: subject

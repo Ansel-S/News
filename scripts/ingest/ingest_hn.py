@@ -4,13 +4,19 @@ Fetches today's top stories with score > 350. No RSS.
 """
 from __future__ import annotations
 
+
+import sys as _sys
+from pathlib import Path as _Path
+_SCRIPTS_DIR = _Path(__file__).resolve().parent.parent
+if str(_SCRIPTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_SCRIPTS_DIR))
 from datetime import datetime, timedelta, UTC
 
 import requests
 
 from config import hn_config
-from db_utils import hn_exists, insert_hn
-from ingest_base import run_parallel
+from db.db_utils import hn_exists, insert_hn
+from ingest.ingest_base import run_parallel
 
 HN_TOP  = "https://hacker-news.firebaseio.com/v0/topstories.json"
 HN_ITEM = "https://hacker-news.firebaseio.com/v0/item/{}.json"

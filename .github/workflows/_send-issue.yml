@@ -1,0 +1,137 @@
+name: _send-issue
+
+# Reusable workflow for the issues that are genuinely uniform in shape:
+# dive_weekly, zen_weekly. Each does exactly: (optionally) ingest -> render
+# -> subject guard -> optional zip attachment -> send -> commit db. Real
+# per-issue trigger files (dive_weekly.yml etc) just supply the handful of
+# things that differ and call this.
+#
+# daily.yml, yt_weekly.yml, and research_weekly.yml are deliberately NOT
+# parameterized through this: daily runs a second full render+send cycle
+# for Extra plus GitHub Release uploads; yt_weekly needs ffmpeg/yt-dlp, a
+# different ingest signature, its own Release upload, and a cleanup step;
+# research_weekly (Phase 6 — replaces the old paper_weekly/report_monthly,
+# merged per DESIGN.md §4.4) genuinely spans two databases (content.db +
+# report.db) with different ingest needs for each. Forcing any of these
+# into this template would make the template itself more complex than the
+# file it replaces — see DESIGN.md §6 and §9.
+
+on:
+  workflow_call:
+    inputs:
+      db:
+        description: "db_init.py / ingest_rss.py target, e.g. 'dive'"
+        required: true
+        type: string
+      ingest_cmd:
+        description: >
+          Full ingest command, e.g. 'python scripts/ingest/ingest_rss.py content'.
+          Optional as of Phase 5's db merge — dive_weekly/zen_weekly/
+          research_weekly no longer ingest their own content.db, since
+          daily.yml's ingest run already covers it (see daily.yml's own
+          comment for why). Leave empty to skip this step entirely.
+        required: false
+        type: string
+        default: ""
+      render_cmd:
+        description: "Full render command, e.g. 'python scripts/render/render_dive.py'"
+        required: true
+        type: string
+      out_name:
+        description: "Render output prefix, e.g. 'out_dive' -> out_dive.html / out_dive_subject.txt"
+        required: true
+        type: string
+      attachment:
+        description: "Zip filename to attach if it exists after rendering, e.g. 'research.zip'. Empty = no attachment (dive/zen, currently the only callers, both use empty)."
+        required: false
+        type: string
+        default: ""
+      commit_paths:
+        description: "Paths to git add before committing, e.g. 'database/content.db'"
+        required: true
+        type: string
+      commit_label:
+        description: "Commit message prefix, e.g. 'dive weekly'"
+        required: true
+        type: string
+      date_format:
+        description: "date(1) format for the commit message — daily/weekly use %Y-%m-%d, monthly uses %Y-%m"
+        required: false
+        type: string
+        default: "%Y-%m-%d"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Init Git LFS
+        run: git lfs install
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install feedparser requests trafilatura pyyaml
+
+      - name: Init database
+        run: python scripts/db/db_init.py ${{ inputs.db }}
+
+      - name: Ingest
+        if: inputs.ingest_cmd != ''
+        run: ${{ inputs.ingest_cmd }}
+
+      - name: Render
+        run: ${{ inputs.render_cmd }}
+
+      - name: Read subject
+        id: subject
+        run: |
+          if [ -f "${{ inputs.out_name }}.html" ] && [ -f "${{ inputs.out_name }}_subject.txt" ]; then
+            echo "send=true" >> "$GITHUB_OUTPUT"
+            echo "value=$(cat ${{ inputs.out_name }}_subject.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "send=false" >> "$GITHUB_OUTPUT"
+            echo "nothing to send — skipping email"
+          fi
+
+      - name: Build attachment list
+        if: steps.subject.outputs.send == 'true'
+        id: attachments
+        run: |
+          if [ -n "${{ inputs.attachment }}" ] && [ -f "${{ inputs.attachment }}" ]; then
+            echo "value=${{ inputs.attachment }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Send email
+        if: steps.subject.outputs.send == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          to: ${{ secrets.TO_EMAIL }}
+          from: Dewsletter <${{ secrets.SMTP_USER }}>
+          subject: ${{ steps.subject.outputs.value }}
+          html_body: file://${{ inputs.out_name }}.html
+          attachments: ${{ steps.attachments.outputs.value }}
+
+      - name: Commit database (LFS)
+        continue-on-error: true
+        run: |
+          git config user.name  github-actions
+          git config user.email github-actions@github.com
+          git add ${{ inputs.commit_paths }}
+          git commit -m "${{ inputs.commit_label }} · $(date -u +'${{ inputs.date_format }}')" || true
+          git push || true

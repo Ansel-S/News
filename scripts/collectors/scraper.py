@@ -235,7 +235,7 @@ def ingest_report_scrapers(r: str) -> None:
     processors.report.process_report_entry() exactly like an RSS-derived
     entry. `r` is the run_id, matching ingest_rss.py's convention."""
     from processors.report import process_report_entry
-    from db_utils import insert_error
+    from db.db_utils import insert_error
 
     for key, (source_name, feed_key, scrape_fn) in SCRAPERS.items():
         try:
@@ -259,5 +259,5 @@ def ingest_report_scrapers(r: str) -> None:
 
 
 if __name__ == "__main__":
-    from db_utils import run_id
+    from db.db_utils import run_id
     ingest_report_scrapers(run_id())

@@ -3,36 +3,57 @@ render_daily.py — Daily digest renderer
 Section order: GitHub → Digest → HN → Billboard/Bandcamp
 
 TLDR / Ruanyf Weekly / HelloGitHub are rendered as a separate "Dewsletter
-Extra" email by render_extra.py, not folded in here — see
-render_base.EXTRA_SOURCE_NAMES for how Ruanyf/HelloGitHub are identified
-(by source_name, since they're nested under the same feed_key as their
-daily-bound feed-mates in feeds/rss.yaml, not a dedicated rss.extra.* key).
+Extra" email by render_extra.py, not folded in here — routing is handled
+by issues/builder.py: those three list `extra_daily` (not `daily`) in
+their own `issues` field in config/sources/rss.yml, so they never reach
+this file at all.
 
 Any row with fetched_full=1 (successful full-text fetch — independent of
-display_mode) gets its complete text written as a .md file and zipped into
+email_mode) gets its complete text written as a .md file and zipped into
 out_daily.zip. The email body still renders each row per its own
-display_mode (full/title_excerpt/title_only/etc) — a "full" article whose
-fetch failed still displays normally, it's just not in the zip.
+email_mode (full/excerpt/title) — a "full" article whose fetch failed
+still displays normally, it's just not in the zip.
+
+Rows are grouped by their own stored feed_key (the source's `section`
+from config, or the source_key itself for sources with no shared
+section) — no separate topic lookup needed; each row already carries the
+grouping label it was ingested with. The two sources whose extract_mode
+is "skip" but need bespoke HTML (GitHub Trending's repo_card, Billboard's
+chart table) are distinguished by config's `render_style` field, looked
+up per source_key — not by string-matching feed_key/source_key.
 """
 from __future__ import annotations
+
+import sys as _sys
+from pathlib import Path as _Path
+_SCRIPTS_DIR = _Path(__file__).resolve().parent.parent
+if str(_SCRIPTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_SCRIPTS_DIR))
 import html
 from collections import defaultdict
 from pathlib import Path
 
-from config import DAILY_ORDER
-from db_utils import get_unpushed, mark_pushed, run_id as new_run_id
-from render_base import (
+from config import rss_sources
+from db.db_utils import mark_pushed, run_id as new_run_id
+from issues.builder import build as build_issue, topic_order as _source_order
+from render.render_base import (
     fmt_date, email_shell, section_heading, excerpt,
     block_title_excerpt, block_repo_card, block_hn, chart_table,
-    export_full_articles_zip, EXTRA_SOURCE_NAMES,
+    export_full_articles_zip,
     MUTED, TEXT, ACCENT, MONO, BORDER,
 )
 
-ROOT       = Path(__file__).resolve().parent.parent
+ROOT       = Path(__file__).resolve().parent.parent.parent  # scripts/<subpkg>/this_file.py -> repo root
 OUT_HTML   = ROOT / "out_daily.html"
 OUT_SUBJ   = ROOT / "out_daily_subject.txt"
 OUT_ZIP    = ROOT / "out_daily.zip"
 ISSUE_TYPE = "daily"
+
+
+def _render_styles() -> dict[str, str]:
+    """source_key -> render_style, for the handful of sources that need
+    bespoke HTML beyond the standard full/excerpt/title blocks."""
+    return {s["id"]: s["render_style"] for s in rss_sources() if "render_style" in s}
 
 
 def _full_teaser_block(*, title: str, source_name: str, url: str,
@@ -56,39 +77,59 @@ def _full_teaser_block(*, title: str, source_name: str, url: str,
 </article>"""
 
 
+# Display labels for feed_key groups that hold more than one source under
+# one heading (single-source groups just use that source's name instead —
+# see below). Only needs entries for groups that actually appear this way
+# in Daily; anything else falls back to a title-cased version of the
+# feed_key's last dot-segment.
+_SECTION_LABELS = {
+    "rss.digest.economics": "Economics",
+    "rss.daily.music":      "Music",
+}
+
+
 def render_rss_sections(rows) -> tuple[str, int, int, list]:
+    order_map = _source_order(ISSUE_TYPE)  # source_key -> order
+    render_styles = _render_styles()       # source_key -> render_style
+
     groups: dict[str, list] = defaultdict(list)
     for row in rows:
         groups[row["feed_key"]].append(row)
 
-    def order(k: str) -> int:
-        for prefix, v in DAILY_ORDER.items():
-            if k.startswith(prefix):
-                return v
+    def order(feed_key: str) -> int:
+        # every source in a group shares the same order (they were seeded
+        # from the same old topic at migration time) — look up any member
+        for row in groups[feed_key]:
+            o = order_map.get(row["source_key"])
+            if o is not None:
+                return o
         return 99
 
     parts, total_count, total_minutes = [], 0, 0
     full_rows_for_zip: list = []
 
-    for fk in sorted(groups, key=order):
-        grp = groups[fk]
+    for feed_key in sorted(groups, key=order):
+        grp = groups[feed_key]
         distinct_sources = {r["source_name"] for r in grp}
-        heading = grp[0]["source_name"] if len(distinct_sources) == 1 else fk
+        if len(distinct_sources) == 1:
+            heading = grp[0]["source_name"]
+        else:
+            heading = _SECTION_LABELS.get(feed_key, feed_key.rsplit(".", 1)[-1].replace("-", " ").title())
         parts.append(section_heading(heading, len(grp)))
         for i, row in enumerate(grp):
-            mode = row["display_mode"]
-            kw   = dict(title=row["title"] or "", source_name=row["source_name"],
+            kw    = dict(title=row["title"] or "", source_name=row["source_name"],
                         url=row["source_id"], content=row["content"] or "", sep=(i > 0))
-            if mode == "full":
-                parts.append(_full_teaser_block(**kw, read_minutes=row["read_minutes"] or 0))
-            elif mode == "repo_card":
+            style = render_styles.get(row["source_key"])
+            if style == "repo_card":
                 parts.append(block_repo_card(**kw))
-            elif mode == "chart_only":
+            elif style == "chart":
                 parts.append(chart_table(row["content"] or ""))
+            elif row["email_mode"] == "full":
+                parts.append(_full_teaser_block(**kw, read_minutes=row["read_minutes"] or 0))
             else:
                 parts.append(block_title_excerpt(**kw))
 
-            # Zip eligibility is independent of display_mode/rendering above —
+            # Zip eligibility is independent of email_mode/rendering above —
             # it only depends on whether the full-text fetch actually
             # succeeded (row["fetched_full"]). A "full"-mode article whose
             # fetch failed still displays normally (falls back to whatever
@@ -119,9 +160,12 @@ def render_hn_section(hn_rows) -> str:
 
 def main() -> None:
     issue_id = new_run_id()
-    rss_rows = [r for r in get_unpushed("core", ISSUE_TYPE)
-               if r["source_name"] not in EXTRA_SOURCE_NAMES]
-    hn_rows  = get_unpushed("hn", ISSUE_TYPE, table="hn_items", order_by="score DESC")
+    tagged = build_issue(ISSUE_TYPE)  # [(db, row), ...] — content.db's RSS
+                                       # rows + hn.db's HN rows together
+    rss_rows = [row for db, row in tagged if db != "hn"]
+    hn_rows  = sorted((row for db, row in tagged if db == "hn"),
+                      key=lambda r: r["score"] or 0, reverse=True)
+    row_db   = {row["id"]: db for db, row in tagged}
 
     rss_html, rss_count, rss_minutes, full_rows = render_rss_sections(rss_rows)
     hn_html  = render_hn_section(hn_rows)
@@ -150,9 +194,9 @@ def main() -> None:
     OUT_SUBJ.write_text(f"Dewsletter Daily · {date_str} · {total} items")
 
     for row in rss_rows:
-        mark_pushed("core", row["id"], ISSUE_TYPE, issue_id)
+        mark_pushed(row_db[row["id"]], row["id"], ISSUE_TYPE, issue_id)
     for row in hn_rows:
-        mark_pushed("hn", row["id"], ISSUE_TYPE, issue_id)
+        mark_pushed(row_db[row["id"]], row["id"], ISSUE_TYPE, issue_id)
 
     zip_note = f", {zip_file_count} full articles → {OUT_ZIP.name}" if zip_file_count else ""
     print(f"render_daily: {rss_count} RSS + {len(hn_rows)} HN{zip_note} → {OUT_HTML.name}")

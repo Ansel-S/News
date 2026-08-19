@@ -29,8 +29,8 @@ from pathlib import Path
 import requests
 
 from config import ROOT, db_path
-from db_utils import now_iso
-import release_utils
+from db.db_utils import now_iso
+import release.release_utils as release_utils
 
 SUBJECT_RE = re.compile(r"^\[github\((?P<url>.+)\)asong56\]$")
 

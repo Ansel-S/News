@@ -5,23 +5,30 @@ their own standalone email, separate from the daily digest — these three are
 long-form and/or have a predictable rhythm that doesn't fit well folded into
 the daily's shorter-form sections.
 
-Ruanyf/HelloGitHub are identified by source_name (see
-render_base.EXTRA_SOURCE_NAMES) since feeds/rss.yaml nests them under
-rss.daily.tech / rss.daily.github alongside their daily-bound feed-mates,
-not a dedicated rss.extra.* key.
+Ruanyf/HelloGitHub are claimed by `extra`'s explicit `source:` rules in
+config/issues.yml (see issues/builder.py) — that's what keeps them out of
+render_daily.py even though they're nested under the same old feed_key
+groups as their daily-bound feed-mates.
 
 Ruanyf rows with a successful full-text fetch (fetched_full=1) are added to
 the same zip as TLDR. HelloGitHub is repo_card — never full-text fetched,
-never zip-eligible (see ingest_rss.py).
+never zip-eligible (see processors/article.py).
 
 Section order: TLDR (teaser + zip attachment) → Ruanyf Weekly → HelloGitHub
 """
 from __future__ import annotations
+
+import sys as _sys
+from pathlib import Path as _Path
+_SCRIPTS_DIR = _Path(__file__).resolve().parent.parent
+if str(_SCRIPTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_SCRIPTS_DIR))
 import html
 from pathlib import Path
 
-from db_utils import get_unpushed, mark_pushed, run_id as new_run_id
-from render_base import (
+from db.db_utils import mark_pushed, run_id as new_run_id
+from issues.builder import build as build_issue
+from render.render_base import (
     fmt_date, email_shell, section_heading,
     block_title_excerpt, block_repo_card,
     export_full_articles_zip,
@@ -30,7 +37,7 @@ from render_base import (
 import tldr_fetch
 import zipfile as _zipfile
 
-ROOT       = Path(__file__).resolve().parent.parent
+ROOT       = Path(__file__).resolve().parent.parent.parent  # scripts/<subpkg>/this_file.py -> repo root
 OUT_HTML   = ROOT / "out_extra.html"
 OUT_SUBJ   = ROOT / "out_extra_subject.txt"
 OUT_ZIP    = ROOT / "out_extra.zip"
@@ -84,8 +91,13 @@ def main() -> None:
 
     tldr_html, tldr_count, tldr_articles = render_tldr_section()
 
-    extra_rows = get_unpushed("core", ISSUE_TYPE)
-    ruanyf_rows = [r for r in extra_rows if r["source_name"] == "Ruanyf Weekly"]
+    tagged = build_issue(ISSUE_TYPE)  # [(db, row), ...] — only ever content.db
+                                       # here (extra's issues.yml rules are all
+                                       # {source: ...}, none of which route
+                                       # anywhere but content.db)
+    extra_rows   = [row for _db, row in tagged]
+    row_db       = {row["id"]: db for db, row in tagged}
+    ruanyf_rows  = [r for r in extra_rows if r["source_name"] == "Ruanyf Weekly"]
     hellogh_rows = [r for r in extra_rows if r["source_name"] == "HelloGitHub"]
 
     ruanyf_html = render_rss_section(ruanyf_rows, "Ruanyf Weekly", block_title_excerpt)
@@ -112,11 +124,15 @@ def main() -> None:
         tmp_dir.mkdir(parents=True)
 
         if tldr_articles:
-            tldr_fetch.write_markdown_files(tldr_articles, tmp_dir)
+            tldr_dir = tmp_dir / "tldr"
+            tldr_dir.mkdir()
+            tldr_fetch.write_markdown_files(tldr_articles, tldr_dir)
         if ruanyf_full_rows:
-            # Reuse export_full_articles_zip's per-row .md writing by pointing
-            # it at a throwaway zip, then merge that zip's contents into
-            # tmp_dir so both sources land in one final archive.
+            # Reuse export_full_articles_zip's per-row .md writing (now
+            # folder-per-source, e.g. "ruanyf-weekly/some-title.md") by
+            # pointing it at a throwaway zip, then merge that zip's
+            # contents into tmp_dir so both sources land in one final
+            # archive, each still under its own subfolder.
             ruanyf_zip = ROOT / ".ruanyf_tmp.zip"
             export_full_articles_zip(ruanyf_full_rows, ruanyf_zip)
             with _zipfile.ZipFile(ruanyf_zip) as zf_in:
@@ -124,9 +140,10 @@ def main() -> None:
             ruanyf_zip.unlink()
 
         with _zipfile.ZipFile(OUT_ZIP, "w", _zipfile.ZIP_DEFLATED) as zf:
-            for p in tmp_dir.iterdir():
-                zf.write(p, arcname=p.name)
-                zip_count += 1
+            for p in tmp_dir.rglob("*"):
+                if p.is_file():
+                    zf.write(p, arcname=str(p.relative_to(tmp_dir)))
+                    zip_count += 1
         shutil.rmtree(tmp_dir)
 
     summary = (
@@ -146,7 +163,7 @@ def main() -> None:
     OUT_SUBJ.write_text(f"Dewsletter Extra · {date_str} · {total} items")
 
     for row in ruanyf_rows + hellogh_rows:
-        mark_pushed("core", row["id"], ISSUE_TYPE, issue_id)
+        mark_pushed(row_db[row["id"]], row["id"], ISSUE_TYPE, issue_id)
 
     print(f"render_extra: {tldr_count} TLDR + {len(ruanyf_rows)} Ruanyf + "
           f"{len(hellogh_rows)} HelloGitHub → {OUT_HTML.name}")

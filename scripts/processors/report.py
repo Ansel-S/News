@@ -19,10 +19,11 @@ from __future__ import annotations
 import requests
 
 from processors._http import HEADERS, fetch_pdf, find_pdf_link
-from db_utils import report_exists, insert_report, insert_error
+from db.db_utils import report_exists, insert_report, insert_error
 
 
-def process_report_entry(entry, *, feed_key: str, source_name: str, r: str) -> None:
+def process_report_entry(entry, *, feed_key: str, source_name: str, r: str,
+                         source_key: str | None = None) -> None:
     url = entry.get("link", "")
     if not url or report_exists(url):
         return
@@ -52,6 +53,7 @@ def process_report_entry(entry, *, feed_key: str, source_name: str, r: str) -> N
     insert_report(
         source_id=url, feed_key=feed_key, source_name=source_name,
         title=title, pdf_url=pdf_url, pdf_data=pdf_data, created_at=created_at,
+        source_key=source_key,
     )
     pdf_status = f"PDF {len(pdf_data)//1024}KB" if pdf_data else "no PDF"
     print(f"  [report] {title[:60]} — {pdf_status}")

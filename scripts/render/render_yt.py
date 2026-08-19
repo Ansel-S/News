@@ -2,19 +2,34 @@
 render_yt.py — YouTube weekly (every Wednesday)
 Title list grouped by section. No thumbnails.
 youtube.db attached as file containing full subtitles.
+
+Section heading comes from each row's own feed_key — the source's
+`section` from config, or (for a channel with no shared section) a
+fallback to that channel's own name, never the raw channel_id string.
+SECTION_LABEL below only needs entries for the *shared, multi-channel*
+sections (grouped under config/sources/youtube.yml's `section` field);
+anything else already has a readable label by construction, so there's
+nothing here that can silently go stale the way a hand-duplicated label
+covering every possible feed_key could.
 """
 from __future__ import annotations
+
+import sys as _sys
+from pathlib import Path as _Path
+_SCRIPTS_DIR = _Path(__file__).resolve().parent.parent
+if str(_SCRIPTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_SCRIPTS_DIR))
 import html as _html
 from collections import defaultdict
 from pathlib import Path
-from db_utils import get_unpushed, mark_pushed, get_yt_media, run_id as new_run_id
-from config import db_path
-from render_base import (
+from db.db_utils import get_unpushed, mark_pushed, get_yt_media, run_id as new_run_id
+from config import db_path, yt_feeds
+from render.render_base import (
     fmt_date, email_shell, section_heading, export_full_articles_zip,
     MUTED, TEXT, ACCENT, BORDER, MONO,
 )
 
-ROOT       = Path(__file__).resolve().parent.parent
+ROOT       = Path(__file__).resolve().parent.parent.parent  # scripts/<subpkg>/this_file.py -> repo root
 OUT_HTML   = ROOT / "out_yt.html"
 OUT_SUBJ   = ROOT / "out_yt_subject.txt"
 OUT_ZIP    = ROOT / "out_yt.zip"
@@ -23,17 +38,33 @@ ISSUE_TYPE = "yt_weekly"
 SECTION_LABEL: dict[str, str] = {
     "yt.daily.tech":     "Tech & Gadgets",
     "yt.daily.ios":      "iOS & Apple",
+    "yt.daily.gfw":      "News & Commentary",
     "yt.digest.finance": "Finance",
     "yt.digest.history": "History",
     "yt.digest.sport":   "Sports",
-    "yt.dive.science":   "Science",
+    "yt.dive.study":     "Science & Learning",
     "yt.dive.politics":  "Politics & Current Affairs",
     "yt.zen":            "Lifestyle",
-    "yt.zen.girl":       "Social",
+    "yt.zen.lovers":     "Relationships",
     "yt.zen.music":      "Music",
-    "yt.zen.asmr":       "ASMR",
+    "yt.zen.pets":       "Pets",
+    "yt.zen.psychology": "Psychology",
 }
-SECTION_ORDER = list(SECTION_LABEL)
+
+
+def _section_order_and_fallback_labels() -> tuple[list[str], dict[str, str]]:
+    """(ordered list of every feed_key that actually appears in config,
+    fallback label for feed_keys not in SECTION_LABEL — i.e. singleton
+    groups, labeled by that channel's own name instead of its raw id)."""
+    order: list[str] = []
+    fallback: dict[str, str] = {}
+    for group in yt_feeds():
+        key = group["key"]
+        if key not in order:
+            order.append(key)
+        if key not in SECTION_LABEL and len(group["sources"]) == 1:
+            fallback[key] = group["sources"][0]["name"]
+    return order, fallback
 
 
 def video_row(row) -> str:
@@ -87,9 +118,11 @@ def main() -> None:
     for row in rows:
         groups[row["feed_key"]].append(row)
 
+    section_order, fallback_labels = _section_order_and_fallback_labels()
+
     def order(k: str) -> int:
         try:
-            return SECTION_ORDER.index(k)
+            return section_order.index(k)
         except ValueError:
             return 99
 
@@ -113,7 +146,7 @@ def main() -> None:
     ]
 
     for fk in sorted(groups, key=order):
-        label = SECTION_LABEL.get(fk, fk)
+        label = SECTION_LABEL.get(fk) or fallback_labels.get(fk, fk)
         grp   = groups[fk]
         parts.append(section_heading(label, len(grp)))
         parts.append('<ul style="list-style:none;margin:0;padding:0">')

@@ -6,65 +6,15 @@ on:
   workflow_dispatch:
 
 jobs:
-  run:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          lfs: true
-
-      - name: Init Git LFS
-        run: git lfs install
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: pip install feedparser requests trafilatura pyyaml
-
-      - name: Init database
-        run: python scripts/db_init.py dive
-
-      - name: Ingest RSS (dive.db)
-        run: python scripts/ingest_rss.py dive
-
-      - name: Render HTML
-        run: python scripts/render_dive.py
-
-      - name: Read subject
-        id: subject
-        run: |
-          if [ -f out_dive.html ] && [ -f out_dive_subject.txt ]; then
-            echo "send=true" >> "$GITHUB_OUTPUT"
-            echo "value=$(cat out_dive_subject.txt)" >> "$GITHUB_OUTPUT"
-          else
-            echo "send=false" >> "$GITHUB_OUTPUT"
-            echo "nothing to send this week — skipping email"
-          fi
-
-      - name: Send email
-        if: steps.subject.outputs.send == 'true'
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
-          username: ${{ secrets.SMTP_USER }}
-          password: ${{ secrets.SMTP_PASS }}
-          to: ${{ secrets.TO_EMAIL }}
-          from: Dewsletter <${{ secrets.SMTP_USER }}>
-          subject: ${{ steps.subject.outputs.value }}
-          html_body: file://out_dive.html
-
-      - name: Commit database (LFS)
-        continue-on-error: true
-        run: |
-          git config user.name  github-actions
-          git config user.email github-actions@github.com
-          git add database/dive.db
-          git commit -m "dive weekly · $(date -u +'%Y-%m-%d')" || true
-          git push || true
+  call:
+    uses: ./.github/workflows/_send-issue.yml
+    with:
+      db: content
+      # No ingest_cmd: content.db is shared with Daily/Extra/Zen/Research
+      # since Phase 5's db merge, and daily.yml's ingest run already covers
+      # it (see daily.yml's own comment). Render-only here.
+      render_cmd: python scripts/render/render_dive.py
+      out_name: out_dive
+      commit_paths: database/content.db
+      commit_label: dive weekly
+    secrets: inherit

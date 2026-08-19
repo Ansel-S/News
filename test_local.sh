@@ -43,8 +43,8 @@ step_deps() {
 step_init() {
     info "Initializing databases..."
     cd "$ROOT"
-    python scripts/db_init.py
-    for db in core hn dive zen paper report youtube; do
+    python scripts/db/db_init.py
+    for db in content hn report youtube; do
         if [ -f "database/${db}.db" ]; then
             ok "database/${db}.db created"
         else
@@ -56,21 +56,21 @@ step_init() {
 
 # ── 3. RSS ingest (uses real network, limited to 2 feeds for speed) ───────────
 step_rss() {
-    info "Testing RSS ingest (core.db only, LOOKBACK_DAYS=1)..."
+    info "Testing RSS ingest (content.db only, LOOKBACK_DAYS=1)..."
     cd "$ROOT"
-    LOOKBACK_DAYS=1 RSS_WORKERS=4 python scripts/ingest_rss.py core
+    LOOKBACK_DAYS=1 RSS_WORKERS=4 python scripts/ingest/ingest_rss.py content
 
-    count=$(sqlite3 database/core.db "SELECT COUNT(*) FROM items;" 2>/dev/null || echo 0)
+    count=$(sqlite3 database/content.db "SELECT COUNT(*) FROM items;" 2>/dev/null || echo 0)
     if [ "$count" -gt 0 ]; then
-        ok "core.db: $count items ingested"
+        ok "content.db: $count items ingested"
     else
-        fail "core.db: 0 items — check network or feed URLs"
+        fail "content.db: 0 items — check network or feed URLs"
     fi
 
-    err_count=$(sqlite3 database/core.db "SELECT COUNT(*) FROM errors;" 2>/dev/null || echo 0)
+    err_count=$(sqlite3 database/content.db "SELECT COUNT(*) FROM errors;" 2>/dev/null || echo 0)
     if [ "$err_count" -gt 0 ]; then
-        echo -e "${YELLOW}  ⚠ $err_count errors logged in core.db errors table:${NC}"
-        sqlite3 database/core.db "SELECT source_id, stage, message FROM errors LIMIT 5;"
+        echo -e "${YELLOW}  ⚠ $err_count errors logged in content.db errors table:${NC}"
+        sqlite3 database/content.db "SELECT source_id, stage, message FROM errors LIMIT 5;"
     fi
     echo
 }
@@ -79,7 +79,7 @@ step_rss() {
 step_hn() {
     info "Testing HackerNews ingest..."
     cd "$ROOT"
-    python scripts/ingest_hn.py
+    python scripts/ingest/ingest_hn.py
 
     count=$(sqlite3 database/hn.db "SELECT COUNT(*) FROM hn_items;" 2>/dev/null || echo 0)
     if [ "$count" -gt 0 ]; then
@@ -96,18 +96,18 @@ step_hn() {
 
 # ── 5. YouTube ingest (single public channel, no channel_id required) ─────────
 step_yt() {
-    info "Testing YouTube ingest (FISH13 — hardcoded channel_id in yt.yaml)..."
+    info "Testing YouTube ingest (FISH13 — hardcoded channel_id in config)..."
     cd "$ROOT"
 
-    # Only run if at least one channel_id is filled in yt.yaml
-    filled=$(grep -v "FILL_ME" feeds/yt.yaml | grep "channel_id:" | wc -l || true)
+    # Only run if at least one channel_id is filled in config/sources/youtube.yml
+    filled=$(grep -v "FILL_ME" config/sources/youtube.yml | grep "channel_id:" | wc -l || true)
     if [ "$filled" -eq 0 ]; then
-        echo -e "${YELLOW}  ⚠ No channel_ids filled in feeds/yt.yaml — skipping YouTube test${NC}"
+        echo -e "${YELLOW}  ⚠ No channel_ids filled in config/sources/youtube.yml — skipping YouTube test${NC}"
         echo -e "    FISH13 (UCQnmZZUKvpY3IVSGf44MVVg) is pre-filled and will be tested."
         echo
     fi
 
-    LOOKBACK_DAYS=3 YT_WORKERS=1 python scripts/ingest_youtube.py
+    LOOKBACK_DAYS=3 YT_WORKERS=1 python scripts/ingest/ingest_youtube.py
 
     yt_count=$(sqlite3 database/youtube.db "SELECT COUNT(*) FROM yt_items;" 2>/dev/null || echo 0)
     media_count=$(sqlite3 database/youtube.db "SELECT COUNT(*) FROM yt_media_items;" 2>/dev/null || echo 0)
@@ -132,6 +132,33 @@ step_render() {
     # the column count changes, which is exactly what happened here before
     # (report.db's table was renamed reports -> report_items and youtube.db's
     # yt_items gained new columns; this seed function silently went stale).
+    #
+    # content.db seeds need a real source_key matching an actual entry in
+    # config/sources/rss.yml (its `issues` list), or issues/builder.py won't
+    # pick the row up at all — a source_key-less dummy row would make
+    # render_dive.py etc silently report "nothing to send" instead of
+    # actually exercising the render path, which defeats the point of
+    # seeding in the first place.
+    _seed_content() {
+        local source_key="$1" feed_key="$2" source_name="$3" title="$4"
+        local count
+        count=$(sqlite3 "database/content.db" \
+            "SELECT COUNT(*) FROM items WHERE source_key='${source_key}';" 2>/dev/null || echo 0)
+        if [ "$count" -eq 0 ]; then
+            echo -e "    ${YELLOW}⚠ content.db has no ${source_key} row — inserting dummy row for render test${NC}"
+            sqlite3 "database/content.db" \
+                "INSERT OR IGNORE INTO items
+                   (id, source_id, feed_key, source_name, extract_mode, email_mode,
+                    title, content, created_at, ingested_at, read_minutes,
+                    fetched_full, source_key)
+                 VALUES(
+                   'test-id-${source_key}','http://example.com/${source_key}',
+                   '${feed_key}','${source_name}','normal','excerpt',
+                   '${title}','Test content for ${source_key}.',
+                   '2025-01-01T00:00:00Z','2025-01-01T00:00:00Z',1,1,'${source_key}');"
+        fi
+    }
+
     _seed_if_empty() {
         local db="$1" table="$2"
         local count
@@ -139,54 +166,46 @@ step_render() {
         if [ "$count" -eq 0 ]; then
             echo -e "    ${YELLOW}⚠ ${db}.db empty — inserting dummy row for render test${NC}"
             case "$db" in
-                dive|zen|paper)
-                    sqlite3 "database/${db}.db" \
-                        "INSERT OR IGNORE INTO items
-                           (id, source_id, feed_key, source_name, display_mode,
-                            title, content, created_at, ingested_at, word_count, read_minutes)
-                         VALUES(
-                           'test-id-${db}','http://example.com/${db}',
-                           'rss.${db}','Test Source','title_only',
-                           'Test Title','Test content for ${db}.',
-                           '2025-01-01T00:00:00Z','2025-01-01T00:00:00Z',10,1);"
-                    ;;
                 report)
                     sqlite3 "database/report.db" \
                         "INSERT OR IGNORE INTO report_items
-                           (id, source_id, feed_key, source_name, display_mode,
-                            title, content, created_at, ingested_at, word_count,
+                           (id, source_id, feed_key, source_name, email_mode,
+                            title, content, created_at, ingested_at,
                             read_minutes, pdf_url, pdf_data)
                          VALUES(
                            'test-id-report','http://example.com/report',
-                           'rss.report','Test Publisher','title_only',
+                           'rss.report','Test Publisher','title',
                            'Test Report Title',NULL,
-                           '2025-01-01T00:00:00Z','2025-01-01T00:00:00Z',0,0,
+                           '2025-01-01T00:00:00Z','2025-01-01T00:00:00Z',0,
                            NULL,NULL);"
                     ;;
                 youtube)
                     sqlite3 "database/youtube.db" \
                         "INSERT OR IGNORE INTO yt_items
-                           (id, source_id, feed_key, source_name, display_mode,
-                            title, content, created_at, ingested_at, word_count,
-                            read_minutes, video_id, channel_id, mode)
+                           (id, source_id, feed_key, source_name, extract_mode, email_mode,
+                            title, content, created_at, ingested_at, read_minutes,
+                            fetched_full, video_id, channel_id, mode)
                          VALUES(
                            'test-id-yt','https://youtu.be/test','yt.zen','Test Channel',
-                           'title_excerpt','Test Video Title','Test subtitle content.',
-                           '2025-01-01T00:00:00Z','2025-01-01T00:00:00Z',0,0,
-                           'test_id','UC_test','subtitle');"
+                           'normal','excerpt','Test Video Title','Test subtitle content.',
+                           '2025-01-01T00:00:00Z','2025-01-01T00:00:00Z',0,
+                           1,'test_id','UC_test','subtitle');"
                     ;;
             esac
         fi
     }
 
-    _seed_if_empty dive  items
-    _seed_if_empty zen   items
-    _seed_if_empty paper items
-    _seed_if_empty report reports
-    _seed_if_empty youtube yt_items
+    # source_key values below must match real entries in
+    # config/sources/rss.yml's `issues` list —
+    # noahpinion (dive_weekly), sspai (zen_weekly), arxiv-cs-ai (research_weekly)
+    _seed_content noahpinion  rss.dive         "Noahpinion"  "Test Dive Article"
+    _seed_content sspai       rss.zen          "sspai"       "Test Zen Article"
+    _seed_content arxiv-cs-ai rss.paper.arxiv  "arXiv AI"    "Test Research Article"
+    _seed_if_empty report   report_items
+    _seed_if_empty youtube  yt_items
 
-    for renderer in render_daily render_dive render_zen render_paper render_report render_yt; do
-        if python "scripts/${renderer}.py"; then
+    for renderer in render_daily render_dive render_zen render_research render_yt; do
+        if python "scripts/render/${renderer}.py"; then
             outfile="out_${renderer#render_}.html"
             # render_daily → out_daily.html (special case)
             [ "$renderer" = "render_daily" ] && outfile="out_daily.html"

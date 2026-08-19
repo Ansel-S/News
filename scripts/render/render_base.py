@@ -2,6 +2,12 @@
 render_base.py — Email HTML rendering primitives (all English)
 """
 from __future__ import annotations
+
+import sys as _sys
+from pathlib import Path as _Path
+_SCRIPTS_DIR = _Path(__file__).resolve().parent.parent
+if str(_SCRIPTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_SCRIPTS_DIR))
 import html
 import re
 from datetime import datetime, UTC
@@ -18,18 +24,6 @@ TAG_BG  = "#f0f0f6"
 FONT = ("'Helvetica Neue',Arial,'Liberation Sans',"
         "'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif")
 MONO = "ui-monospace,'Cascadia Code','Menlo','Consolas',monospace"
-
-
-# ── Daily ↔ Extra routing ────────────────────────────────────────────────────
-# Ruanyf Weekly and HelloGitHub are configured in feeds/rss.yaml nested under
-# rss.daily.tech / rss.daily.github (alongside TLDR and GitHub Trending
-# respectively) rather than under a dedicated rss.extra.* key — feed_key
-# alone can't distinguish them from their daily-bound feed-mates. Both
-# render_daily.py (excludes these from the Daily digest) and
-# render_extra.py (includes only these, alongside live-fetched TLDR) key off
-# this shared source_name set instead, since source_name is stable
-# regardless of which feed group a source is nested under.
-EXTRA_SOURCE_NAMES = {"Ruanyf Weekly", "HelloGitHub"}
 
 
 # ── Date helpers ──────────────────────────────────────────────────────────────
@@ -236,10 +230,11 @@ def section_heading(label: str, count: int | None = None) -> str:
 
 # ── Full-article markdown export (for zip attachments) ───────────────────────
 # Raw sqlite attachments require `duckdb --ui` to read and are not pleasant.
-# Any section rendered with display_mode == "full" gets its full text exported
-# as one .md file per article, zipped as an email attachment instead — plain
-# text opens anywhere, isn't flagged as suspicious by mail clients, and
-# compresses far better than an HTML/db attachment would.
+# Any row with fetched_full=1 (successful full-text extraction — independent
+# of email_mode) gets its full text exported as one .md file per article,
+# zipped as an email attachment instead — plain text opens anywhere, isn't
+# flagged as suspicious by mail clients, and compresses far better than an
+# HTML/db attachment would.
 
 import zipfile as _zipfile
 import shutil as _shutil
@@ -254,24 +249,27 @@ def _slugify(text: str, max_len: int = 60) -> str:
 
 def export_full_articles_zip(rows, zip_path, *, title_key="title",
                               source_key="source_name", url_key="source_id",
-                              content_key="content", date_key="created_at") -> int:
-    """Write one .md file per row to a temp dir and zip it to zip_path.
-    Only call this with rows whose display_mode == 'full' already filtered.
-    Returns the number of files written."""
+                              content_key="content", date_key="created_at",
+                              group_key="source_name") -> int:
+    """Write one .md file per row to a temp dir and zip it to zip_path,
+    organized into one subfolder per `group_key` value (default:
+    source_name) instead of a flat pile of files — makes a 30+-article zip
+    actually navigable. Returns the number of files written."""
     zip_path = _Path(zip_path)
     tmp_dir = zip_path.with_suffix("")  # e.g. out_daily.zip -> out_daily/
     if tmp_dir.exists():
         _shutil.rmtree(tmp_dir)
     tmp_dir.mkdir(parents=True)
 
-    seen: dict[str, int] = {}
+    seen: dict[tuple[str, str], int] = {}
     paths: list[_Path] = []
     for row in rows:
-        title = row[title_key] or "(untitled)"
-        slug  = _slugify(title)
-        n     = seen.get(slug, 0)
-        seen[slug] = n + 1
-        fname = f"{slug}.md" if n == 0 else f"{slug}-{n}.md"
+        title  = row[title_key] or "(untitled)"
+        folder = _slugify(row[group_key]) if group_key in row.keys() else "misc"
+        slug   = _slugify(title)
+        n      = seen.get((folder, slug), 0)
+        seen[(folder, slug)] = n + 1
+        fname  = f"{slug}.md" if n == 0 else f"{slug}-{n}.md"
 
         header = f"# {title}\n\n*{row[source_key]}"
         date = (row[date_key] or "")[:10] if date_key in row.keys() else ""
@@ -279,7 +277,9 @@ def export_full_articles_zip(rows, zip_path, *, title_key="title",
             header += f" · {date}"
         header += f"*\n\n{row[url_key]}\n\n---\n\n"
 
-        path = tmp_dir / fname
+        folder_dir = tmp_dir / folder
+        folder_dir.mkdir(exist_ok=True)
+        path = folder_dir / fname
         path.write_text(header + (row[content_key] or "") + "\n", encoding="utf-8")
         paths.append(path)
 
@@ -287,7 +287,7 @@ def export_full_articles_zip(rows, zip_path, *, title_key="title",
         zip_path.unlink()
     with _zipfile.ZipFile(zip_path, "w", _zipfile.ZIP_DEFLATED) as zf:
         for p in paths:
-            zf.write(p, arcname=p.name)
+            zf.write(p, arcname=str(p.relative_to(tmp_dir)))
     _shutil.rmtree(tmp_dir)
     return len(paths)
 
@@ -295,9 +295,9 @@ def export_full_articles_zip(rows, zip_path, *, title_key="title",
 def export_pdf_zip(rows, zip_path, *, title_key="title",
                    pdf_key="pdf_data", max_total_bytes: int = 18_000_000) -> tuple[int, int]:
     """Write one .pdf file per row (only rows with a non-empty pdf blob) into
-    zip_path. Used by render_paper.py (arXiv PDFs) and render_report.py
-    (thinktank PDFs) — rows that failed to download a PDF are simply
-    skipped, so failed fetches never end up in the zip.
+    zip_path. Used by render_research.py (both arXiv papers, from content.db,
+    and thinktank reports, from report.db) — rows that failed to download a
+    PDF are simply skipped, so failed fetches never end up in the zip.
 
     max_total_bytes caps the *uncompressed* PDF bytes written, stopping
     before the zip grows large enough to blow past email provider size
@@ -306,11 +306,9 @@ def export_pdf_zip(rows, zip_path, *, title_key="title",
     inflates that by ~33%, so 18MB of raw PDF bytes leaves real headroom
     even for a large batch). PDFs are added in row order; once the running
     total would exceed the cap, remaining PDFs are skipped for this run —
-    they stay in report.db/paper.db and will be picked up (or re-attempted)
-    the following issue since they're still marked unpushed... actually
-    they're NOT re-attempted, since render_simple_digest marks every row in
-    `rows` pushed regardless of zip inclusion — skipped PDFs are still
-    listed by title in the email, just not attached this time.
+    render_simple_digest marks every row in `rows` pushed regardless of zip
+    inclusion, so skipped PDFs are NOT re-attempted next issue — they're
+    still listed by title in the email, just not attached this time.
 
     Returns (files_written, files_skipped_for_size)."""
     zip_path = _Path(zip_path)
@@ -356,12 +354,13 @@ def render_simple_digest(
     wrap_ul: bool = False,
     pre_hook=None,
     summary_fn=None,
+    use_builder: bool = False,
 ) -> None:
     """Generic 'weekly digest' renderer shared by render_dive.py, render_zen.py,
-    render_paper.py, render_report.py — the four scripts that are all really
-    the same shape: query unpushed rows, group them, dispatch each row to a
-    block-rendering function based on its display_mode, write the email, mark
-    pushed. Each caller just supplies the bits that differ.
+    render_research.py — three scripts that are all really the same shape:
+    query unpushed rows, group them, dispatch each row to a
+    block-rendering function, write the email, mark pushed. Each caller
+    just supplies the bits that differ.
 
     block_dispatch(row, is_first_in_group) -> html string for one row. The
         is_first_in_group flag lets callers suppress a leading separator line
@@ -380,17 +379,39 @@ def render_simple_digest(
         for use in the subject/summary line). Return {} if nothing to add.
     summary_fn(rows, extra) -> override the one-line summary paragraph; by
         default just says "N items".
+    use_builder: if True, fetch rows via issues.builder.build(issue_type)
+        instead of get_unpushed(db, issue_type, table=table) directly.
+        Raises IssueNotFullyScoped if the issue's sources don't exclusively
+        occupy their db/table and that table has no source_key column to
+        filter by instead — deliberately not caught here (a render script
+        asking for an unsupported issue should fail loudly, not silently
+        fall back to the old query path and mask the gap). An issue can
+        span more than one db (research_weekly: content.db's papers +
+        report.db's reports) — mark_pushed() is called per-row against
+        whichever db that row actually came from, not the single `db`
+        kwarg above (which is ignored when use_builder=True).
     """
     from collections import defaultdict
     from pathlib import Path
-    from db_utils import get_unpushed, mark_pushed, run_id as new_run_id
+    from db.db_utils import get_unpushed, mark_pushed, run_id as new_run_id
 
-    root      = Path(__file__).resolve().parent.parent
+    root      = Path(__file__).resolve().parent.parent.parent  # scripts/<subpkg>/this_file.py -> repo root
     out_html  = root / f"{out_name}.html"
     out_subj  = root / f"{out_name}_subject.txt"
 
     issue_id = new_run_id()
-    rows     = get_unpushed(db, issue_type, table=table)
+    if use_builder:
+        from issues.builder import build as build_issue
+        tagged   = build_issue(issue_type)          # [(db_name, row), ...]
+        rows     = [row for _db, row in tagged]
+        row_db   = {row["id"]: _db for _db, row in tagged}  # for per-row mark_pushed below —
+                                                              # an issue can now span more than
+                                                              # one db (research_weekly: content.db
+                                                              # + report.db), so a single fixed
+                                                              # `db` kwarg isn't enough anymore
+    else:
+        rows   = get_unpushed(db, issue_type, table=table)
+        row_db = None
     if not rows:
         print(f"{out_name}: nothing to send")
         return
@@ -431,7 +452,7 @@ def render_simple_digest(
     out_subj.write_text(f"{subject_prefix} · {date_str} · {len(rows)} items")
 
     for row in rows:
-        mark_pushed(db, row["id"], issue_type, issue_id)
+        mark_pushed(row_db[row["id"]] if row_db else db, row["id"], issue_type, issue_id)
     print(f"{out_name}: {len(rows)} items → {out_html.name}")
 
 

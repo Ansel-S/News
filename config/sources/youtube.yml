@@ -6,6 +6,13 @@ sources:
   mode:
   - audio
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.tech
 - id: UCeUJO1H3TEXu2syfAAPjYKQ
   collector: youtube
   name: 极客湾
@@ -13,6 +20,13 @@ sources:
   mode:
   - audio
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.tech
 - id: UCUWUYyNh8KFS7E6-Q0ajBzQ
   collector: youtube
   name: 司波图
@@ -20,12 +34,26 @@ sources:
   mode:
   - audio
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.tech
 - id: UCXLV-KfDQAFUJ_as9H1Lfbw
   collector: youtube
   name: IT咖啡馆
   channel_id: UCXLV-KfDQAFUJ_as9H1Lfbw
   mode:
   - mixed
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.tech
 - id: UC0k8npj7VdHzN2L_-JSaPyA
   collector: youtube
   name: AI 探索与发现
@@ -33,6 +61,13 @@ sources:
   mode:
   - audio
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.tech
 - id: UCGs_cktFPCgN8ggJJVon84g
   collector: youtube
   name: ami.moment
@@ -40,6 +75,13 @@ sources:
   mode:
   - audio
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.tech
 - id: UChoR3_5ZTj3TS12ub1GHw3Q
   collector: youtube
   name: 新知
@@ -47,6 +89,13 @@ sources:
   mode:
   - subtitle
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.gfw
 - id: UCc0K-eBV3blWsg2PWlrbdBg
   collector: youtube
   name: 程序媛小白
@@ -54,6 +103,13 @@ sources:
   mode:
   - subtitle
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.gfw
 - id: UC4GFL56UB1AmyCEvzqpvSAw
   collector: youtube
   name: 我是阿众
@@ -61,6 +117,13 @@ sources:
   mode:
   - subtitle
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.gfw
 - id: UCgV1t5fHFvAVPyprEWvuIzg
   collector: youtube
   name: 爱分享
@@ -68,6 +131,13 @@ sources:
   mode:
   - subtitle
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.gfw
 - id: UCbCCUH8S3yhlm7__rhxR2QQ
   collector: youtube
   name: 不良林
@@ -75,6 +145,13 @@ sources:
   mode:
   - subtitle
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.gfw
 - id: UCR7Up1tdiE7lu9xjA-OMltA
   collector: youtube
   name: 影享者
@@ -82,6 +159,13 @@ sources:
   mode:
   - subtitle
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.gfw
 - id: UCiZ-vPsF_30ZyEBRfOYnsdg
   collector: youtube
   name: 科技猎奇
@@ -89,6 +173,13 @@ sources:
   mode:
   - subtitle
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.gfw
 - id: UCQoagx4VHBw3HkAyzvKEEBA
   collector: youtube
   name: 科技共享
@@ -96,6 +187,13 @@ sources:
   mode:
   - subtitle
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.gfw
 - id: UCffPrldpcuZNeYbzeZ8udxg
   collector: youtube
   name: 数码解码
@@ -103,6 +201,13 @@ sources:
   mode:
   - subtitle
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.gfw
 - id: UC9vwELYqSedcjU50D7IiYkw
   collector: youtube
   name: 疯狂赚钱实验室
@@ -110,6 +215,13 @@ sources:
   mode:
   - subtitle
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.gfw
 - id: UCJ7O8Cf9lJnBxnoc2pl2_uA
   collector: youtube
   name: 艾特科技
@@ -117,6 +229,13 @@ sources:
   mode:
   - subtitle
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.gfw
 - id: UCUXv8OhSFFQRJGg_dO55XrQ
   collector: youtube
   name: 墙后立方体
@@ -124,6 +243,13 @@ sources:
   mode:
   - subtitle
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.gfw
 - id: UCykdQvoM9Fw2nO-58iEsvrw
   collector: youtube
   name: 边境中文说
@@ -131,6 +257,13 @@ sources:
   mode:
   - subtitle
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.gfw
 - id: UCCeBr_ypzzFobTC7keWUbDg
   collector: youtube
   name: 李大可爱玩
@@ -138,6 +271,13 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.ios
 - id: UCOiu59jL8MFIqq-HkIKCKFg
   collector: youtube
   name: 塔科女子
@@ -145,42 +285,91 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.daily.ios
 - id: UCBUH38E0ngqvmTqdchWunwQ
   collector: youtube
   name: 美投讲美股
   channel_id: UCBUH38E0ngqvmTqdchWunwQ
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.digest.finance
 - id: UCKV2yWPB3wn0RTZh3cTD8YA
   collector: youtube
   name: 硅谷101
   channel_id: UCKV2yWPB3wn0RTZh3cTD8YA
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.digest.finance
 - id: UCFDMMIHbtRdrVhHlGXVzApA
   collector: youtube
   name: 老周横眉
   channel_id: UCFDMMIHbtRdrVhHlGXVzApA
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.digest.finance
 - id: UCmajVvuOjspOA9WtJGquDHA
   collector: youtube
   name: 北美王路飞
   channel_id: UCmajVvuOjspOA9WtJGquDHA
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.digest.finance
 - id: UCmaQHKSlg9QxMgzifrGFbCg
   collector: youtube
   name: 掌柜说历史
   channel_id: UCmaQHKSlg9QxMgzifrGFbCg
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.digest.history
 - id: UCOrcp--cu4Egwdc07X44btA
   collector: youtube
   name: 李天豪
   channel_id: UCOrcp--cu4Egwdc07X44btA
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.digest.history
 - id: UC9xRcqG8V6yNi6Hum92EoGg
   collector: youtube
   name: 7mlc
@@ -188,12 +377,26 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.digest.sport
 - id: UCU6JLYuerEUb7VrDd4zLihg
   collector: youtube
   name: SportsHD
   channel_id: UCU6JLYuerEUb7VrDd4zLihg
   mode:
   - video
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.digest.sport
 - id: UCorFnMmI4eXS1ftlY4PpTsw
   collector: youtube
   name: Pythagoras in Boots
@@ -201,12 +404,25 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.digest.sport
 - id: UCXl4i9dYBrFOabk0xGmbkRA
   collector: youtube
   name: Dwarkesh Patel
   channel_id: UCXl4i9dYBrFOabk0xGmbkRA
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
 - id: UC9D-nVmcQdCgAGUPBJZcmOA
   collector: youtube
   name: 漫士沉思录
@@ -214,6 +430,13 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.dive.study
 - id: UCKJvfb-6icHloy6MBpHg9aw
   collector: youtube
   name: 毕导 THU
@@ -221,6 +444,13 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.dive.study
 - id: UClLEMac0ZjZCsVOTiaBtJBg
   collector: youtube
   name: 芳斯塔芙
@@ -228,6 +458,13 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.dive.study
 - id: UCP5Kd0smdWe9H_bDH-73c6Q
   collector: youtube
   name: 何同学
@@ -235,6 +472,13 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.dive.study
 - id: UC3ScyryU9Oy9Wse3a8OAmYQ
   collector: youtube
   name: Frontline PBS
@@ -242,42 +486,91 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.dive.study
 - id: UCQtwvRQWnT5Buh9hpvNNryQ
   collector: youtube
   name: 柴知道
   channel_id: UCQtwvRQWnT5Buh9hpvNNryQ
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.dive.study
 - id: UCJ1zX4FZA15dwE2olLAO3-w
   collector: youtube
   name: IC实验室
   channel_id: UCJ1zX4FZA15dwE2olLAO3-w
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.dive.study
 - id: UCpC2D7JdcB8nlfzhX08i7fg
   collector: youtube
   name: VEXILLA 潮時務所
   channel_id: UCpC2D7JdcB8nlfzhX08i7fg
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.dive.politics
 - id: UC3411UsjUC2t-Xfr1gwIhzg
   collector: youtube
   name: 马司库
   channel_id: UC3411UsjUC2t-Xfr1gwIhzg
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.dive.politics
 - id: UCQlsPZL9hFasMEX7ywG_sfQ
   collector: youtube
   name: Stan的聊政事儿频道
   channel_id: UCQlsPZL9hFasMEX7ywG_sfQ
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.dive.politics
 - id: UCvTe3Z7TZsjGzUERx4Ce6zA
   collector: youtube
   name: 摄徒日记
   channel_id: UCvTe3Z7TZsjGzUERx4Ce6zA
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.dive.politics
 - id: UCPNfoYdMopKZKlaTB92g-QQ
   collector: youtube
   name: 小叔TV
@@ -285,18 +578,39 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.dive.politics
 - id: UCBKDRq35-L8xev4O7ZqBeLg
   collector: youtube
   name: 王志安
   channel_id: UCBKDRq35-L8xev4O7ZqBeLg
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.dive.politics
 - id: UCr_F4Y9iboUKlg_ZPm4jkVQ
   collector: youtube
   name: 老梁
   channel_id: UCr_F4Y9iboUKlg_ZPm4jkVQ
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.dive.politics
 - id: UC8gZZWIWmBuCb_gzC8DUrvw
   collector: youtube
   name: 老厉害
@@ -304,6 +618,12 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
 - id: UCduz2zplHaYCAtiaEIcxErw
   collector: youtube
   name: 十三要和拳头
@@ -311,6 +631,13 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen
 - id: UCM3O_udrQjPU72oRNVipYBQ
   collector: youtube
   name: Mira 004
@@ -318,12 +645,26 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen
 - id: UC5BC7UNoExVELezGVlV_bYg
   collector: youtube
   name: Jason-老湿
   channel_id: UC5BC7UNoExVELezGVlV_bYg
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen
 - id: UCIlv2zQgmulRhEa1yCGLhpg
   collector: youtube
   name: 三度c
@@ -331,6 +672,13 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen
 - id: UC2pXkPVfSKPFViEIvsGNuMA
   collector: youtube
   name: Funny Lulu 2.0
@@ -338,6 +686,13 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen
 - id: UCk5yPS6FfbJjeaY-PwczPvw
   collector: youtube
   name: 11区小豪的故事
@@ -345,6 +700,13 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen
 - id: UCjeo-SCLqpLjidXiTNRVvVA
   collector: youtube
   name: 金毛评测犬
@@ -352,6 +714,13 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen
 - id: UCAYKS2PYe9Dv6Gd4OjgwjQg
   collector: youtube
   name: 大碗拿铁
@@ -359,24 +728,52 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen
 - id: UCgo_-fjJxnLwwwq5dSY72rg
   collector: youtube
   name: 自说自话的总裁
   channel_id: UCgo_-fjJxnLwwwq5dSY72rg
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen
 - id: UCsBYq6iSNLIpwr5X2sPmuHQ
   collector: youtube
   name: Ellen 李
   channel_id: UCsBYq6iSNLIpwr5X2sPmuHQ
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen.psychology
 - id: UC-8qeOjUEf4F9tJO5QGviDg
   collector: youtube
   name: 人性黑書
   channel_id: UC-8qeOjUEf4F9tJO5QGviDg
   mode:
   - subtitle
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen.psychology
 - id: UC820rtkN9apWeN5t9GKz8lw
   collector: youtube
   name: 泰哥是只小暖猫
@@ -384,6 +781,13 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen.pets
 - id: UCw2W7GIqJNB-UMUxncnMuiw
   collector: youtube
   name: 黄阿玛的后宫生活
@@ -391,6 +795,13 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen.pets
 - id: UCUnvudhyaywzo8gygpURLLg
   collector: youtube
   name: 一只笨鼠
@@ -398,6 +809,13 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen.pets
 - id: UCaAXpJRNswRKICOGGdGRpWA
   collector: youtube
   name: 张八筒
@@ -405,6 +823,13 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen.lovers
 - id: UC8gKBuEj6LZSz42TFvRILAg
   collector: youtube
   name: 做我的猫
@@ -412,42 +837,91 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen.lovers
 - id: UCtiFLElUzYjbkPTSGqBn9IQ
   collector: youtube
   name: 凯哥带你撩妹
   channel_id: UCtiFLElUzYjbkPTSGqBn9IQ
   mode:
   - subtitle
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen.lovers
 - id: UCJ5B2TYnDep7ToycB87AoOA
   collector: youtube
   name: 凯南教聊天
   channel_id: UCJ5B2TYnDep7ToycB87AoOA
   mode:
   - subtitle
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen.lovers
 - id: UCdw6TpsPcl2vgYdVyv_9CUg
   collector: youtube
   name: 凯哥教撩妹
   channel_id: UCdw6TpsPcl2vgYdVyv_9CUg
   mode:
   - subtitle
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen.lovers
 - id: UCjD4XGxZRvCusBrYUUQLeEw
   collector: youtube
   name: 凯哥带你脱单
   channel_id: UCjD4XGxZRvCusBrYUUQLeEw
   mode:
   - subtitle
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen.lovers
 - id: UCqWNOHjgfL8ADEdXGznzwUw
   collector: youtube
   name: 悦耳音乐酱
   channel_id: UCqWNOHjgfL8ADEdXGznzwUw
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen.music
 - id: UCIgUbcReolYR_R4-p54iomg
   collector: youtube
   name: 妙音人
   channel_id: UCIgUbcReolYR_R4-p54iomg
   mode:
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly
+  section: yt.zen.music
 - id: UCQnmZZUKvpY3IVSGf44MVVg
   collector: youtube
   name: FISH13
@@ -455,3 +929,9 @@ sources:
   mode:
   - video
   - audio
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - yt_weekly

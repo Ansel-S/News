@@ -3,203 +3,455 @@ sources:
   collector: rss
   name: TLDR Tech
   url: https://tldr.tech/api/rss/tech
-  display_mode: full
   fetch: live
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - extra_daily
+  section: rss.daily.tech
 - id: tldr-dev
   collector: rss
   name: TLDR Dev
   url: https://tldr.tech/api/rss/dev
-  display_mode: full
   fetch: live
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - extra_daily
+  section: rss.daily.tech
 - id: ruanyf-weekly
   collector: rss
   name: Ruanyf Weekly
   url: https://feeds.feedburner.com/ruanyifeng
-  display_mode: full
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - extra_daily
+  section: rss.daily.tech
 - id: github-trending-weekly
   collector: rss
   name: GitHub Trending Weekly
   url: https://rsshub.app/github/trending/weekly/any
-  display_mode: repo_card
+  extract_mode: skip
+  email_mode: title
+  db: content
+  table: items
+  issues:
+  - daily
+  section: rss.daily.github
+  order:
+    daily: 2
+  render_style: repo_card
 - id: hellogithub
   collector: rss
   name: HelloGitHub
   url: https://hellogithub.com/rss
-  display_mode: full
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - extra_daily
+  section: rss.daily.github
 - id: billboard-hot-100
   collector: rss
   name: Billboard Hot 100
   url: FILL_ME
-  display_mode: chart_only
   fetch: live
+  extract_mode: skip
+  email_mode: title
+  db: content
+  table: items
+  issues:
+  - daily
+  section: rss.daily.music
+  order:
+    daily: 8
+  render_style: chart
 - id: bandcamp-daily
   collector: rss
   name: Bandcamp Daily
   url: https://daily.bandcamp.com/feed
-  display_mode: title_excerpt
   fetch: live
+  extract_mode: normal
+  email_mode: excerpt
+  db: content
+  table: items
+  issues:
+  - daily
+  section: rss.daily.music
+  order:
+    daily: 8
 - id: the-daily-nyt
   collector: rss
   name: The Daily NYT
   url: https://feeds.simplecast.com/54nAGcIl
-  display_mode: title_excerpt
+  extract_mode: normal
+  email_mode: excerpt
+  db: content
+  table: items
+  issues:
+  - daily
+  order:
+    daily: 6
 - id: last-week-in-ai
   collector: rss
   name: Last Week in AI
   url: https://lastweekin.ai/feed
-  display_mode: title_excerpt
+  extract_mode: normal
+  email_mode: excerpt
+  db: content
+  table: items
+  issues:
+  - daily
+  order:
+    daily: 3
 - id: stripe-engineering
   collector: rss
   name: Stripe Engineering
   url: https://stripe.com/blog/feed/rss
-  display_mode: title_excerpt
+  extract_mode: normal
+  email_mode: excerpt
+  db: content
+  table: items
+  issues:
+  - daily
+  order:
+    daily: 4
 - id: our-world-in-data
   collector: rss
   name: Our World in Data
   url: https://ourworldindata.org/atom.xml
-  display_mode: title_excerpt
+  extract_mode: normal
+  email_mode: excerpt
+  db: content
+  table: items
+  issues:
+  - daily
+  section: rss.digest.economics
+  order:
+    daily: 5
 - id: fred-blog
   collector: rss
   name: FRED Blog
   url: https://fredblog.stlouisfed.org/feed/
-  display_mode: title_excerpt
+  extract_mode: normal
+  email_mode: excerpt
+  db: content
+  table: items
+  issues:
+  - daily
+  section: rss.digest.economics
+  order:
+    daily: 5
 - id: fed-notes
   collector: rss
   name: FED Notes
   url: https://www.federalreserve.gov/feeds/feds_notes.xml
-  display_mode: title_excerpt
+  extract_mode: normal
+  email_mode: excerpt
+  db: content
+  table: items
+  issues:
+  - daily
+  section: rss.digest.economics
+  order:
+    daily: 5
 - id: noahpinion
   collector: rss
   name: Noahpinion
   url: https://www.noahpinion.blog/feed
-  display_mode: title_excerpt
+  extract_mode: normal
+  email_mode: excerpt
+  db: content
+  table: items
+  issues:
+  - dive_weekly
+  section: rss.dive
 - id: one-useful-thing
   collector: rss
   name: One Useful Thing
   url: https://www.oneusefulthing.org/feed
-  display_mode: title_excerpt
+  extract_mode: normal
+  email_mode: excerpt
+  db: content
+  table: items
+  issues:
+  - dive_weekly
+  section: rss.dive
 - id: wait-but-why
   collector: rss
   name: Wait But Why
   url: https://waitbutwhy.com/feed
-  display_mode: title_excerpt
+  extract_mode: normal
+  email_mode: excerpt
+  db: content
+  table: items
+  issues:
+  - dive_weekly
+  section: rss.dive
 - id: the-marginalian
   collector: rss
   name: The Marginalian
   url: https://www.themarginalian.org/feed/
-  display_mode: title_excerpt
+  extract_mode: normal
+  email_mode: excerpt
+  db: content
+  table: items
+  issues:
+  - dive_weekly
+  section: rss.dive
 - id: lenny-s-newsletter
   collector: rss
   name: Lenny's Newsletter
   url: https://www.lennysnewsletter.com/feed
-  display_mode: title_excerpt
+  extract_mode: normal
+  email_mode: excerpt
+  db: content
+  table: items
+  issues:
+  - dive_weekly
+  section: rss.dive
 - id: acm-queue
   collector: rss
   name: ACM Queue
   url: https://queue.acm.org/rss/feeds/queuecontent.xml
-  display_mode: title_only
+  extract_mode: normal
+  email_mode: title
+  db: content
+  table: items
+  issues:
+  - research_weekly
+  section: rss.research.cs
 - id: martin-fowler
   collector: rss
   name: Martin Fowler
   url: https://martinfowler.com/feed.atom
-  display_mode: title_only
+  extract_mode: normal
+  email_mode: title
+  db: content
+  table: items
+  issues:
+  - research_weekly
+  section: rss.research.cs
 - id: cloudflare-blog
   collector: rss
   name: Cloudflare Blog
   url: https://blog.cloudflare.com/rss/
-  display_mode: title_only
+  extract_mode: normal
+  email_mode: title
+  db: content
+  table: items
+  issues:
+  - research_weekly
+  section: rss.research.cs
 - id: quanta-magazine
   collector: rss
   name: Quanta Magazine
   url: https://www.quantamagazine.org/feed/
-  display_mode: title_only
+  extract_mode: normal
+  email_mode: title
+  db: content
+  table: items
+  issues:
+  - research_weekly
+  section: rss.research.science
 - id: aqr-research
   collector: rss
   name: AQR Research
   url: FILL_ME
-  display_mode: title_only
+  extract_mode: normal
+  email_mode: title
+  db: content
+  table: items
+  issues:
+  - research_weekly
+  section: rss.research.economics
 - id: anthropic-research
   collector: rss
   name: Anthropic Research
   url: FILL_ME
-  display_mode: title_only
+  extract_mode: normal
+  email_mode: title
+  db: content
+  table: items
+  issues:
+  - research_weekly
+  section: rss.daily.ai
 - id: apple-machine-learning-research
   collector: rss
   name: Apple Machine Learning Research
   url: https://machinelearning.apple.com/rss.xml
-  display_mode: title_only
+  extract_mode: normal
+  email_mode: title
+  db: content
+  table: items
+  issues:
+  - research_weekly
+  section: rss.daily.ai
 - id: nist-ai
   collector: rss
   name: NIST AI
   url: FILL_ME
-  display_mode: title_only
+  extract_mode: normal
+  email_mode: title
+  db: content
+  table: items
+  issues:
+  - research_weekly
+  section: rss.daily.ai
 - id: bis-statistics
   collector: rss
   name: BIS Statistics
   url: https://www.bis.org/doclist/all_statistics.rss
-  display_mode: title_only
+  extract_mode: normal
+  email_mode: title
+  db: content
+  table: items
+  issues:
+  - research_weekly
+  section: rss.daily.economics
 - id: bis-papers
   collector: rss
   name: BIS Papers
   url: https://www.bis.org/doclist/reshub_papers.rss
-  display_mode: title_only
+  extract_mode: normal
+  email_mode: title
+  db: content
+  table: items
+  issues:
+  - research_weekly
+  section: rss.daily.economics
 - id: arxiv-cs-ai
   collector: rss
   name: Arxiv CS.AI
   url: https://rss.arxiv.org/rss/cs.AI
   pdf: arxiv
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - research_weekly
+  section: rss.paper.arxiv
 - id: rand
   collector: rss
   name: RAND
   url: https://www.rand.org/pubs/new.xml
-  display_mode: title_only
   pdf: scrape
+  extract_mode: normal
+  email_mode: title
+  db: report
+  table: report_items
+  issues:
+  - research_weekly
+  section: rss.report
 - id: rand-commentary
   collector: rss
   name: RAND Commentary
   url: https://www.rand.org/pubs/commentary.xml
-  display_mode: title_only
   pdf: scrape
+  extract_mode: normal
+  email_mode: title
+  db: report
+  table: report_items
+  issues:
+  - research_weekly
+  section: rss.report
 - id: rand-articles
   collector: rss
   name: RAND Articles
   url: https://www.rand.org/pubs/articles.xml
-  display_mode: title_only
   pdf: scrape
+  extract_mode: normal
+  email_mode: title
+  db: report
+  table: report_items
+  issues:
+  - research_weekly
+  section: rss.report
 - id: peterson-institute
   collector: rss
   name: Peterson Institute
   url: https://www.piie.com/rss/update.xml
-  display_mode: title_only
   pdf: scrape
+  extract_mode: normal
+  email_mode: title
+  db: report
+  table: report_items
+  issues:
+  - research_weekly
+  section: rss.report
 - id: epoch-ai
   collector: rss
   name: Epoch AI
   url: https://epochai.substack.com/feed
-  display_mode: title_only
   pdf: scrape
+  extract_mode: normal
+  email_mode: title
+  db: report
+  table: report_items
+  issues:
+  - research_weekly
+  section: rss.report
 - id: sspai
   collector: rss
   name: sspai
   url: https://sspai.com/feed
-  display_mode: title_excerpt
+  extract_mode: normal
+  email_mode: excerpt
+  db: content
+  table: items
+  issues:
+  - zen_weekly
+  section: rss.zen
 - id: ifanr
   collector: rss
   name: ifanr
   url: https://www.ifanr.com/feed
-  display_mode: title_excerpt
+  extract_mode: normal
+  email_mode: excerpt
+  db: content
+  table: items
+  issues:
+  - zen_weekly
+  section: rss.zen
 - id: innei
   collector: rss
   name: Innei
   url: https://innei.in/feed
-  display_mode: title_excerpt
+  extract_mode: normal
+  email_mode: excerpt
+  db: content
+  table: items
+  issues:
+  - zen_weekly
+  section: rss.zen
 - id: bubbles-town
   collector: rss
   name: Bubbles Town
   url: https://bubbles.town/weekly/feed
-  display_mode: full
+  extract_mode: normal
+  email_mode: full
+  db: content
+  table: items
+  issues:
+  - zen_weekly
+  section: rss.zen
 - id: today-i-found-out
   collector: rss
   name: Today I Found Out
   url: https://www.todayifoundout.com/index.php/feed/
-  display_mode: title_excerpt
+  extract_mode: normal
+  email_mode: excerpt
+  db: content
+  table: items
+  issues:
+  - zen_weekly
+  section: rss.zen

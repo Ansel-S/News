@@ -37,39 +37,6 @@ feeds:
         url: https://feeds.feedburner.com/ruanyifeng
         display_mode: full
 
-  # ── Daily · Google News ────────────────────────────────────────────────────────────
-  - key: rss.daily.news
-    db: core
-    issue: daily
-    sources:
-      - name: Lexington News
-        url: https://news.google.com/rss/topics/CAAqHAgKIhZDQklTQ2pvSWJHOWpZV3hmZGpJb0FBUAE/sections/CAQiUENCSVNOam9JYkc5allXeGZkakpDRUd4dlkyRnNYM1l5WDNObFkzUnBiMjV5Q3hJSkwyMHZNREZzZUhjMmVnc0tDUzl0THpBeGJIaDNOaWdBKjEIACotCAoiJ0NCSVNGem9JYkc5allXeGZkako2Q3dvSkwyMHZNREZzZUhjMktBQVABUAE?hl=en-US&gl=US&ceid=US%3Aen
-        display_mode: full
-        no_store: true
-      - name: Shanghai News
-        url: https://news.google.com/rss/topics/CAAqHAgKIhZDQklTQ2pvSWJHOWpZV3hmZGpJb0FBUAE/sections/CAQiTkNCSVNORG9JYkc5allXeGZkakpDRUd4dlkyRnNYM1l5WDNObFkzUnBiMjV5Q2hJSUwyMHZNRFozYW1aNkNnb0lMMjB2TURaM2FtWW9BQSowCAAqLAgKIiZDQklTRmpvSWJHOWpZV3hmZGpKNkNnb0lMMjB2TURaM2FtWW9BQVABUAE?hl=en-US&gl=US&ceid=US%3Aen
-        display_mode: full
-        no_store: true
-      - name: World News
-        url: https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx1YlY4U0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US%3Aen
-        display_mode: full
-      - name: Business News
-        url: https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US%3Aen
-        display_mode: full
-        no_store: true
-      - name: Technology News
-        url: https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGRqTVhZU0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US%3Aen
-        display_mode: full
-        no_store: true
-      - name: Premier League News
-        url: https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREpmZEdNU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen
-        display_mode: full
-        no_store: true
-      - name: La Liga News
-        url: https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRGxuY1hnU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen
-        display_mode: full
-        no_store: true
-
   # ── Daily · GitHub ──────────────────────────────────────────────────────────
   - key: rss.daily.github
     db: core
@@ -219,7 +186,27 @@ feeds:
         url: https://www.bis.org/doclist/reshub_papers.rss
         display_mode: title_only
 
+  # ── arXiv → paper.db (PDFs downloaded directly, abs -> pdf URL pattern) ────
+  # Split out from rss.report below: unlike report.db's thinktank sources,
+  # arXiv doesn't need HTML-scraping for a PDF link — its PDF URLs are
+  # predictable (arxiv.org/abs/{id} -> arxiv.org/pdf/{id}), so it gets its
+  # own ingest path (ingest_rss.py::process_paper_entry) and lands in
+  # paper.db instead of report.db.
+  - key: rss.paper.arxiv
+    db: paper
+    issue: paper_weekly
+    sources:
+      - name: Arxiv CS.AI
+        url: https://rss.arxiv.org/rss/cs.AI
+
   # ── Report → report.db (PDFs stored as binary blobs) ───────────────────────
+  # Only RAND, Peterson Institute, and Epoch AI actually have RSS feeds.
+  # Brookings / AI Index / NBER / Institute for Progress / Carnegie
+  # Endowment have no RSS at all — they used to sit here as permanently
+  # unfillable FILL_ME placeholders (ingest_rss.py silently skips FILL_ME
+  # urls, so they were never doing anything). They're now scraped directly
+  # by scripts/ingest_scrapers.py instead, which runs automatically
+  # whenever report.db is a target — see ingest_rss.py::main().
   - key: rss.report
     db: report
     issue: report_monthly
@@ -231,22 +218,10 @@ feeds:
         url: https://www.rand.org/pubs/commentary.xml
       - name: RAND Articles
         url: https://www.rand.org/pubs/articles.xml
-      - name: Brookings
-        url: FILL_ME
-      - name: AI Index
-        url: FILL_ME
-      - name: NBER
-        url: FILL_ME
-      - name: Institute for Progress
-        url: FILL_ME
-      - name: Epoch AI
-        url: FILL_ME
-      - name: Carnegie Endowment for International Peace
-        url: FILL_ME
       - name: Peterson Institute
         url: https://www.piie.com/rss/update.xml
-      - name: Arxiv CS.AI
-        url: https://rss.arxiv.org/rss/cs.AI
+      - name: Epoch AI
+        url: https://epochai.substack.com/feed
 
   # ── Zen → zen.db ────────────────────────────────────────────────────────────
   - key: rss.zen

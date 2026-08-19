@@ -1,10 +1,17 @@
 """
 ingest_youtube.py — YouTube subtitle ingest
-Reads feeds/yt.yaml, fetches video lists via YouTube RSS feed,
-downloads subtitles with yt-dlp, stores in youtube.db.
+Reads config/sources/youtube.yml (via config.py's yt_feeds()), fetches
+video lists via YouTube RSS feed, downloads subtitles with yt-dlp, stores
+in youtube.db.
 """
 from __future__ import annotations
 
+
+import sys as _sys
+from pathlib import Path as _Path
+_SCRIPTS_DIR = _Path(__file__).resolve().parent.parent
+if str(_SCRIPTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_SCRIPTS_DIR))
 import os
 import re
 import subprocess
@@ -15,11 +22,11 @@ import feedparser
 import requests
 
 from config import yt_feeds
-from db_utils import (
+from db.db_utils import (
     run_id, yt_exists, mark_yt_seen, insert_yt, insert_yt_media_item,
     insert_error as _err, now_iso,
 )
-from ingest_base import is_recent as _is_recent, run_parallel
+from ingest.ingest_base import is_recent as _is_recent, run_parallel
 
 MAX_WORKERS   = int(os.getenv("YT_WORKERS", "3"))
 LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "8"))
@@ -241,20 +248,43 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
     print(f"  [{channel_name}] {entry.get('title', '')[:55]} — {status} (modes={modes})")
 
 
-def fetch_channel(channel_id: str, channel_name: str, feed_key: str, modes: list[str], r: str) -> None:
+def fetch_channel(channel_id: str, channel_name: str, feed_key: str, modes: list[str], r: str) -> str:
+    """Returns one of: "ok" (>=1 entry processed), "empty" (0 entries,
+    valid feed), "blocked" (response wasn't a parseable feed at all — the
+    likely signature of YouTube blocking a datacenter IP), "fetch_error"
+    (network/HTTP failure)."""
     url = yt_feed_url(channel_id)
     try:
         resp = requests.get(url, timeout=30)
         resp.raise_for_status()
         feed = feedparser.parse(resp.content)
+        if not feed.entries:
+            # feedparser's bozo flag does NOT reliably catch this — an
+            # HTML block/consent page parses without error and just
+            # yields 0 entries, same as a channel with genuinely no new
+            # videos. The one thing a real Atom feed always has that an
+            # HTML page won't is a feed-level id/title. Checking for that
+            # is what actually distinguishes "blocked" from "quiet
+            # channel" here.
+            looks_like_html = not feed.get("feed", {}).get("title")
+            if looks_like_html:
+                snippet = resp.text[:120].replace("\n", " ")
+                print(f"  [{channel_name}] response wasn't a real feed — {snippet!r}")
+                return "blocked"
+            print(f"  [{channel_name}] 0 entries in feed (no new videos)")
+            return "empty"
         for entry in feed.entries:
             try:
                 process_entry(entry, channel_id=channel_id, channel_name=channel_name,
                               feed_key=feed_key, modes=modes, r=r)
             except Exception as ex:
                 insert_error(r, entry.get("link", url), "parse", str(ex))
+                print(f"  [{channel_name}] entry error: {ex}")
+        return "ok"
     except Exception as ex:
         insert_error(r, url, "fetch", str(ex))
+        print(f"  [{channel_name}] fetch failed: {ex}")
+        return "fetch_error"
 
 
 def _normalize_modes(raw) -> list[str]:
@@ -282,9 +312,18 @@ def main() -> None:
                               feed_key=feed_key, modes=modes, r=r))
 
     print(f"ingest_youtube: {len(tasks)} channels, {MAX_WORKERS} workers")
-    run_parallel(tasks, fetch_channel, max_workers=MAX_WORKERS, label_key="channel_name")
+    results = run_parallel(tasks, fetch_channel, max_workers=MAX_WORKERS,
+                           label_key="channel_name", collect_results=True)
 
-    print("ingest_youtube: done")
+    from collections import Counter
+    tally = Counter(results)
+    print(f"ingest_youtube: done — ok={tally['ok']} empty={tally['empty']} "
+          f"blocked={tally['blocked']} fetch_error={tally['fetch_error']}")
+    if tally["blocked"] > len(tasks) // 2:
+        print("ingest_youtube: WARNING — most channels returned an unparseable "
+              "response, not just 'no new videos'. This is the signature of "
+              "YouTube blocking this machine's IP (common for datacenter/CI "
+              "IPs, including GitHub Codespaces) rather than a code bug.")
 
 
 if __name__ == "__main__":
