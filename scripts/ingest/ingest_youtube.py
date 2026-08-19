@@ -300,6 +300,7 @@ def _normalize_modes(raw) -> list[str]:
 
 def main() -> None:
     r     = run_id()
+    only  = os.getenv("YT_ONLY_CHANNEL")  # match against channel_id or name — see test_yt.sh
     tasks = []
     for group in yt_feeds():
         feed_key = group["key"]
@@ -307,9 +308,16 @@ def main() -> None:
             cid = src.get("channel_id", "")
             if not cid or cid == "FILL_ME":
                 continue
+            if only and only not in (cid, src["name"]):
+                continue
             modes = _normalize_modes(src.get("mode"))
             tasks.append(dict(channel_id=cid, channel_name=src["name"],
                               feed_key=feed_key, modes=modes, r=r))
+
+    if only and not tasks:
+        print(f"ingest_youtube: YT_ONLY_CHANNEL={only!r} matched no configured channel "
+              f"(checked both channel_id and name) — nothing to do")
+        return
 
     print(f"ingest_youtube: {len(tasks)} channels, {MAX_WORKERS} workers")
     results = run_parallel(tasks, fetch_channel, max_workers=MAX_WORKERS,
