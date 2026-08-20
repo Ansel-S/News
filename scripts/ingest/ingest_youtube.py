@@ -136,12 +136,15 @@ def clean_vtt(vtt: str) -> str:
     return " ".join(lines)
 
 
-def download_media(video_url: str, video_id: str, *, kind: str) -> Path | None:
+def download_media(video_url: str, video_id: str, *, kind: str) -> tuple[Path | None, str | None]:
     """Download a low-res video (vp09/av01, <=720p) or audio-only track.
     `kind` is 'video' or 'audio' — used as a filename suffix so a channel that
-    wants both doesn't have one overwrite the other. Returns the output file
-    path, or None on failure. Caller uploads it as a GitHub Release asset and
-    deletes the local copy afterwards."""
+    wants both doesn't have one overwrite the other. Returns (path, error) —
+    path is None on failure, in which case error holds yt-dlp's actual
+    stderr/timeout reason instead of discarding it (a prior version returned
+    bare None on failure, which is why a channel could silently produce
+    zero usable output with no visible cause). Caller uploads the returned
+    path as a GitHub Release asset and deletes the local copy afterwards."""
     MEDIA_OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_tmpl = str(MEDIA_OUT_DIR / f"{video_id}.{kind}.%(ext)s")
     fmt = AUDIO_FORMAT if kind == "audio" else VIDEO_FORMAT
@@ -154,11 +157,14 @@ def download_media(video_url: str, video_id: str, *, kind: str) -> Path | None:
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
     except subprocess.TimeoutExpired:
-        return None
+        return None, f"yt-dlp timed out after 1800s ({kind})"
     if result.returncode != 0:
-        return None
+        stderr_tail = (result.stderr or "").strip().splitlines()[-1] if result.stderr else "(no stderr)"
+        return None, f"yt-dlp exit {result.returncode} ({kind}): {stderr_tail}"
     matches = list(MEDIA_OUT_DIR.glob(f"{video_id}.{kind}.*"))
-    return matches[0] if matches else None
+    if not matches:
+        return None, f"yt-dlp exit 0 but no output file matched ({kind})"
+    return matches[0], None
 
 
 def insert_error(r: str, source_id: str, stage: str, msg: str) -> None:
@@ -167,16 +173,21 @@ def insert_error(r: str, source_id: str, stage: str, msg: str) -> None:
 
 
 def process_entry(entry, *, channel_id: str, channel_name: str,
-                  feed_key: str, modes: list[str], r: str) -> None:
+                  feed_key: str, modes: list[str], r: str) -> bool:
+    """Returns True if this video produced something usable (subtitle text
+    or a downloaded media file), False if it was skipped (dedup/recency) or
+    genuinely produced nothing — the caller uses this to distinguish a
+    real per-video failure from a normal skip, instead of both looking like
+    silent success."""
     video_url = entry.get("link", "")
     if not video_url:
-        return
+        return False
     if RETRY_SOURCE and channel_id != RETRY_SOURCE:
-        return
+        return False
     if not is_recent(entry):
-        return
+        return False
     if yt_exists(video_url):
-        return
+        return False
 
     video_id = entry.get("yt_videoid") or ""
     if not video_id:
@@ -185,6 +196,7 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
 
     subtitle: str | None = None
     media_paths: dict[str, Path] = {}  # kind -> path, e.g. {"video": ..., "audio": ...}
+    media_errors: list[str] = []
 
     want_subtitle = "subtitle" in modes or "mixed" in modes
     want_video    = "video" in modes
@@ -194,13 +206,17 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
         subtitle = download_subtitle(video_url)  # already cleaned (vtt or ass)
 
     if want_video:
-        p = download_media(video_url, video_id, kind="video")
+        p, err = download_media(video_url, video_id, kind="video")
         if p:
             media_paths["video"] = p
+        elif err:
+            media_errors.append(err)
     if want_audio:
-        p = download_media(video_url, video_id, kind="audio")
+        p, err = download_media(video_url, video_id, kind="audio")
         if p:
             media_paths["audio"] = p
+        elif err:
+            media_errors.append(err)
 
     if "mixed" in modes and not subtitle and not media_paths:
         # Subtitles came back empty and no explicit video/audio was requested.
@@ -208,13 +224,17 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
         # try audio first, and only fall back to a low-res video if even
         # that isn't available (e.g. a members-only or otherwise restricted
         # audio stream).
-        p = download_media(video_url, video_id, kind="audio")
+        p, err = download_media(video_url, video_id, kind="audio")
         if p:
             media_paths["audio"] = p
         else:
-            p = download_media(video_url, video_id, kind="video")
+            if err:
+                media_errors.append(err)
+            p, err = download_media(video_url, video_id, kind="video")
             if p:
                 media_paths["video"] = p
+            elif err:
+                media_errors.append(err)
 
     # Every processed video is marked seen for dedup, regardless of whether
     # it produced subtitles, video, or audio — this is what stops pure
@@ -244,15 +264,24 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
     if subtitle:
         status_bits.append("subtitle")
     status_bits += list(media_paths.keys())
-    status = "+".join(status_bits) if status_bits else "nothing found"
+    found_something = bool(status_bits)
+    status = "+".join(status_bits) if found_something else "NOTHING FOUND"
     print(f"  [{channel_name}] {entry.get('title', '')[:55]} — {status} (modes={modes})")
+    if not found_something and media_errors:
+        for err in media_errors:
+            print(f"    -> {err}")
+        for err in media_errors:
+            insert_error(r, video_url, "media_download", err)
+    return found_something
 
 
 def fetch_channel(channel_id: str, channel_name: str, feed_key: str, modes: list[str], r: str) -> str:
-    """Returns one of: "ok" (>=1 entry processed), "empty" (0 entries,
-    valid feed), "blocked" (response wasn't a parseable feed at all — the
-    likely signature of YouTube blocking a datacenter IP), "fetch_error"
-    (network/HTTP failure)."""
+    """Returns one of: "ok" (>=1 entry produced subtitle text or a
+    downloaded media file), "no_media" (feed parsed and had entries, but
+    every entry produced nothing usable — e.g. yt-dlp failing on all of
+    them), "empty" (0 entries, valid feed), "blocked" (response wasn't a
+    parseable feed at all — the likely signature of YouTube blocking a
+    datacenter IP), "fetch_error" (network/HTTP failure)."""
     url = yt_feed_url(channel_id)
     try:
         resp = requests.get(url, timeout=30)
@@ -273,14 +302,22 @@ def fetch_channel(channel_id: str, channel_name: str, feed_key: str, modes: list
                 return "blocked"
             print(f"  [{channel_name}] 0 entries in feed (no new videos)")
             return "empty"
+        any_success = False
+        any_attempted = False
         for entry in feed.entries:
             try:
-                process_entry(entry, channel_id=channel_id, channel_name=channel_name,
-                              feed_key=feed_key, modes=modes, r=r)
+                any_attempted = True
+                if process_entry(entry, channel_id=channel_id, channel_name=channel_name,
+                                 feed_key=feed_key, modes=modes, r=r):
+                    any_success = True
             except Exception as ex:
                 insert_error(r, entry.get("link", url), "parse", str(ex))
                 print(f"  [{channel_name}] entry error: {ex}")
-        return "ok"
+        if any_success:
+            return "ok"
+        if any_attempted:
+            return "no_media"
+        return "empty"  # every entry was skipped (dedup/recency), not a failure
     except Exception as ex:
         insert_error(r, url, "fetch", str(ex))
         print(f"  [{channel_name}] fetch failed: {ex}")
@@ -325,13 +362,18 @@ def main() -> None:
 
     from collections import Counter
     tally = Counter(results)
-    print(f"ingest_youtube: done — ok={tally['ok']} empty={tally['empty']} "
-          f"blocked={tally['blocked']} fetch_error={tally['fetch_error']}")
+    print(f"ingest_youtube: done — ok={tally['ok']} no_media={tally['no_media']} "
+          f"empty={tally['empty']} blocked={tally['blocked']} fetch_error={tally['fetch_error']}")
     if tally["blocked"] > len(tasks) // 2:
         print("ingest_youtube: WARNING — most channels returned an unparseable "
               "response, not just 'no new videos'. This is the signature of "
               "YouTube blocking this machine's IP (common for datacenter/CI "
               "IPs, including GitHub Codespaces) rather than a code bug.")
+    if tally["no_media"] > len(tasks) // 2:
+        print("ingest_youtube: WARNING — most channels had new videos but "
+              "produced no usable subtitle/video/audio. Check the per-video "
+              "'-> ...' error lines above — likely yt-dlp being blocked or "
+              "failing on every download, not a code bug.")
 
 
 if __name__ == "__main__":

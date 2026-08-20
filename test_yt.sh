@@ -54,7 +54,7 @@ else
 fi
 echo
 
-# The ok/empty/blocked/fetch_error tally printed above by ingest_youtube.py
+# The ok/no_media/empty/blocked/fetch_error tally printed above by ingest_youtube.py
 # itself is the real diagnosis — these checks below only confirm whether
 # anything landed in the db, not why.
 yt_count=$(sqlite3 database/youtube.db "SELECT COUNT(*) FROM yt_items;" 2>/dev/null || echo 0)
@@ -70,7 +70,7 @@ if [ "$count" -gt 0 ]; then
         echo "    [$name] ${title:0:60}"
     done
 else
-    fail "youtube.db: 0 items — see the ok/empty/blocked/fetch_error tally above for why"
+    fail "youtube.db: 0 items — see the ok/no_media/empty/blocked/fetch_error tally above for why"
 fi
 echo
 
