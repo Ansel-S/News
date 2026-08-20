@@ -69,7 +69,10 @@ def pick_subtitle_file(tmp_dir: Path) -> Path | None:
     return vtt_pool[0] if vtt_pool else pool[0]
 
 
-def download_subtitle(video_url: str) -> str | None:
+def download_subtitle(video_url: str) -> tuple[str | None, str | None]:
+    """Returns (subtitle_text, error_reason). error_reason is None on success
+    (including the legitimate case where yt-dlp succeeds but the video simply
+    has no subtitles)."""
     with tempfile.TemporaryDirectory() as tmp:
         cmd = [
             "yt-dlp", "--skip-download",
@@ -78,14 +81,22 @@ def download_subtitle(video_url: str) -> str | None:
             "--output", f"{tmp}/%(id)s",
             video_url,
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        except subprocess.TimeoutExpired:
+            return None, "yt-dlp timeout (subtitle)"
         if result.returncode != 0:
-            return None
+            # Keep stderr's last line — yt-dlp's actual failure message
+            # (e.g. "Sign in to confirm you're not a bot", geo-block,
+            # private/deleted video) is usually the last non-empty line.
+            stderr_lines = [l for l in result.stderr.strip().splitlines() if l.strip()]
+            reason = stderr_lines[-1] if stderr_lines else f"yt-dlp exit {result.returncode}"
+            return None, reason
         chosen = pick_subtitle_file(Path(tmp))
         if not chosen:
-            return None
+            return None, None  # yt-dlp succeeded; video genuinely has no subs
         raw = chosen.read_text("utf-8", errors="ignore")
-        return clean_ass(raw) if chosen.suffix == ".ass" else clean_vtt(raw)
+        return (clean_ass(raw) if chosen.suffix == ".ass" else clean_vtt(raw)), None
 
 
 def clean_ass(ass: str) -> str:
@@ -129,12 +140,11 @@ def clean_vtt(vtt: str) -> str:
     return " ".join(lines)
 
 
-def download_media(video_url: str, video_id: str, *, kind: str) -> Path | None:
+def download_media(video_url: str, video_id: str, *, kind: str) -> tuple[Path | None, str | None]:
     """Download a low-res video (vp09/av01, <=720p) or audio-only track.
     `kind` is 'video' or 'audio' — used as a filename suffix so a channel that
-    wants both doesn't have one overwrite the other. Returns the output file
-    path, or None on failure. Caller uploads it as a GitHub Release asset and
-    deletes the local copy afterwards."""
+    wants both doesn't have one overwrite the other. Returns (path, error_reason);
+    path is None on failure, with error_reason describing why."""
     MEDIA_OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_tmpl = str(MEDIA_OUT_DIR / f"{video_id}.{kind}.%(ext)s")
     fmt = AUDIO_FORMAT if kind == "audio" else VIDEO_FORMAT
@@ -147,11 +157,15 @@ def download_media(video_url: str, video_id: str, *, kind: str) -> Path | None:
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
     except subprocess.TimeoutExpired:
-        return None
+        return None, f"yt-dlp timeout ({kind})"
     if result.returncode != 0:
-        return None
+        stderr_lines = [l for l in result.stderr.strip().splitlines() if l.strip()]
+        reason = stderr_lines[-1] if stderr_lines else f"yt-dlp exit {result.returncode}"
+        return None, reason
     matches = list(MEDIA_OUT_DIR.glob(f"{video_id}.{kind}.*"))
-    return matches[0] if matches else None
+    if not matches:
+        return None, "yt-dlp succeeded but no output file found"
+    return matches[0], None
 
 
 def insert_error(r: str, source_id: str, stage: str, msg: str) -> None:
@@ -178,22 +192,29 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
 
     subtitle: str | None = None
     media_paths: dict[str, Path] = {}  # kind -> path, e.g. {"video": ..., "audio": ...}
+    fail_reasons: list[str] = []
 
     want_subtitle = "subtitle" in modes or "mixed" in modes
     want_video    = "video" in modes
     want_audio    = "audio" in modes
 
     if want_subtitle:
-        subtitle = download_subtitle(video_url)  # already cleaned (vtt or ass)
+        subtitle, err = download_subtitle(video_url)
+        if err:
+            fail_reasons.append(f"subtitle: {err}")
 
     if want_video:
-        p = download_media(video_url, video_id, kind="video")
+        p, err = download_media(video_url, video_id, kind="video")
         if p:
             media_paths["video"] = p
+        elif err:
+            fail_reasons.append(f"video: {err}")
     if want_audio:
-        p = download_media(video_url, video_id, kind="audio")
+        p, err = download_media(video_url, video_id, kind="audio")
         if p:
             media_paths["audio"] = p
+        elif err:
+            fail_reasons.append(f"audio: {err}")
 
     if "mixed" in modes and not subtitle and not media_paths:
         # Subtitles came back empty and no explicit video/audio was requested.
@@ -201,13 +222,17 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
         # try audio first, and only fall back to a low-res video if even
         # that isn't available (e.g. a members-only or otherwise restricted
         # audio stream).
-        p = download_media(video_url, video_id, kind="audio")
+        p, err = download_media(video_url, video_id, kind="audio")
         if p:
             media_paths["audio"] = p
         else:
-            p = download_media(video_url, video_id, kind="video")
+            if err:
+                fail_reasons.append(f"mixed-audio-fallback: {err}")
+            p, err = download_media(video_url, video_id, kind="video")
             if p:
                 media_paths["video"] = p
+            elif err:
+                fail_reasons.append(f"mixed-video-fallback: {err}")
 
     # Every processed video is marked seen for dedup, regardless of whether
     # it produced subtitles, video, or audio — this is what stops pure
@@ -237,7 +262,16 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
     if subtitle:
         status_bits.append("subtitle")
     status_bits += list(media_paths.keys())
-    status = "+".join(status_bits) if status_bits else "nothing found"
+    if status_bits:
+        status = "+".join(status_bits)
+    elif fail_reasons:
+        status = "FAILED: " + "; ".join(fail_reasons)
+        insert_error(r, video_url, "download", "; ".join(fail_reasons))
+    else:
+        # yt-dlp ran cleanly but genuinely found nothing (e.g. no subtitles
+        # exist for this video and no video/audio mode was requested) —
+        # not an error.
+        status = "nothing found (no error)"
     print(f"  [{channel_name}] {entry.get('title', '')[:55]} — {status} (modes={modes})")
 
 
