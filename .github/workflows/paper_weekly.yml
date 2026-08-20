@@ -35,11 +35,23 @@ jobs:
       - name: Render HTML
         run: python scripts/render_paper.py
 
+      - name: Check if there's anything to send
+        id: check
+        run: |
+          if [ -f out_paper_subject.txt ]; then
+            echo "send=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "send=false" >> "$GITHUB_OUTPUT"
+            echo "render_paper: nothing to send, skipping email"
+          fi
+
       - name: Read subject
+        if: steps.check.outputs.send == 'true'
         id: subject
         run: echo "value=$(cat out_paper_subject.txt)" >> "$GITHUB_OUTPUT"
 
       - name: Send email
+        if: steps.check.outputs.send == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
