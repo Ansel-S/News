@@ -76,7 +76,11 @@ def pick_subtitle_file(tmp_dir: Path) -> Path | None:
     return vtt_pool[0] if vtt_pool else pool[0]
 
 
-def download_subtitle(video_url: str) -> str | None:
+def download_subtitle(video_url: str) -> tuple[str | None, str | None]:
+    """Returns (subtitle_text, error) — error holds yt-dlp's actual failure
+    reason (or 'no subtitle track available' if yt-dlp succeeded but
+    produced no file) instead of discarding it on every failure path, same
+    fix as download_media() below."""
     with tempfile.TemporaryDirectory() as tmp:
         cmd = [
             "yt-dlp", "--skip-download",
@@ -85,14 +89,19 @@ def download_subtitle(video_url: str) -> str | None:
             "--output", f"{tmp}/%(id)s",
             video_url,
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        except subprocess.TimeoutExpired:
+            return None, "yt-dlp timed out after 120s (subtitle)"
         if result.returncode != 0:
-            return None
+            stderr_tail = (result.stderr or "").strip().splitlines()[-1] if result.stderr else "(no stderr)"
+            return None, f"yt-dlp exit {result.returncode} (subtitle): {stderr_tail}"
         chosen = pick_subtitle_file(Path(tmp))
         if not chosen:
-            return None
+            return None, "yt-dlp exit 0 but no subtitle track available"
         raw = chosen.read_text("utf-8", errors="ignore")
-        return clean_ass(raw) if chosen.suffix == ".ass" else clean_vtt(raw)
+        text = clean_ass(raw) if chosen.suffix == ".ass" else clean_vtt(raw)
+        return text, None
 
 
 def clean_ass(ass: str) -> str:
@@ -203,7 +212,9 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
     want_audio    = "audio" in modes
 
     if want_subtitle:
-        subtitle = download_subtitle(video_url)  # already cleaned (vtt or ass)
+        subtitle, err = download_subtitle(video_url)  # already cleaned (vtt or ass)
+        if err and not subtitle:
+            media_errors.append(err)
 
     if want_video:
         p, err = download_media(video_url, video_id, kind="video")
@@ -271,7 +282,7 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
         for err in media_errors:
             print(f"    -> {err}")
         for err in media_errors:
-            insert_error(r, video_url, "media_download", err)
+            insert_error(r, video_url, "download", err)
     return found_something
 
 
