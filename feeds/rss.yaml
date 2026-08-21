@@ -32,16 +32,6 @@ feeds:
         url: https://hellogithub.com/rss
         display_mode: full
 
-  # ── Daily · Music ───────────────────────────────────────────────────────────
-  - key: rss.daily.music
-    db: core
-    issue: daily
-    sources:
-      - name: Billboard Hot 100
-        url: FILL_ME
-        display_mode: chart_only
-        no_store: true
-
   # ── Digest · Podcast ────────────────────────────────────────────────────────
   - key: rss.digest.podcast
     db: core
