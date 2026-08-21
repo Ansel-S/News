@@ -20,23 +20,6 @@
 
 feeds:
 
-  # ── Daily · Tech ────────────────────────────────────────────────────────────
-  - key: rss.daily.tech
-    db: core
-    issue: daily
-    sources:
-      - name: TLDR Tech
-        url: https://tldr.tech/api/rss/tech
-        display_mode: full
-        no_store: true
-      - name: TLDR Dev
-        url: https://tldr.tech/api/rss/dev
-        display_mode: full
-        no_store: true
-      - name: Ruanyf Weekly
-        url: https://feeds.feedburner.com/ruanyifeng
-        display_mode: full
-
   # ── Daily · GitHub ──────────────────────────────────────────────────────────
   - key: rss.daily.github
     db: core
@@ -58,10 +41,6 @@ feeds:
         url: FILL_ME
         display_mode: chart_only
         no_store: true
-      - name: Bandcamp Daily
-        url: https://daily.bandcamp.com/feed
-        display_mode: title_excerpt
-        no_store: true
 
   # ── Digest · Podcast ────────────────────────────────────────────────────────
   - key: rss.digest.podcast
@@ -70,15 +49,6 @@ feeds:
     sources:
       - name: The Daily NYT
         url: https://feeds.simplecast.com/54nAGcIl
-        display_mode: title_excerpt
-
-  # ── Digest · AI ─────────────────────────────────────────────────────────────
-  - key: rss.digest.ai
-    db: core
-    issue: daily
-    sources:
-      - name: Last Week in AI
-        url: https://lastweekin.ai/feed
         display_mode: title_excerpt
 
   # ── Digest · Engineering ────────────────────────────────────────────────────
@@ -200,13 +170,6 @@ feeds:
         url: https://rss.arxiv.org/rss/cs.AI
 
   # ── Report → report.db (PDFs stored as binary blobs) ───────────────────────
-  # Only RAND, Peterson Institute, and Epoch AI actually have RSS feeds.
-  # Brookings / AI Index / NBER / Institute for Progress / Carnegie
-  # Endowment have no RSS at all — they used to sit here as permanently
-  # unfillable FILL_ME placeholders (ingest_rss.py silently skips FILL_ME
-  # urls, so they were never doing anything). They're now scraped directly
-  # by scripts/ingest_scrapers.py instead, which runs automatically
-  # whenever report.db is a target — see ingest_rss.py::main().
   - key: rss.report
     db: report
     issue: report_monthly
@@ -218,8 +181,6 @@ feeds:
         url: https://www.rand.org/pubs/commentary.xml
       - name: RAND Articles
         url: https://www.rand.org/pubs/articles.xml
-      - name: Peterson Institute
-        url: https://www.piie.com/rss/update.xml
       - name: Epoch AI
         url: https://epochai.substack.com/feed
 
