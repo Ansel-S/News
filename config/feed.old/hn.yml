@@ -1,0 +1,12 @@
+# feeds/hn.yaml
+# HackerNews — fetched directly from Firebase API, not RSS
+
+hn:
+  db: hn
+  issue: daily
+  filter:
+    min_score: 350
+    max_age_hours: 48
+  fetch:
+    top_n: 200         # check top 200 stories
+    workers: 10
