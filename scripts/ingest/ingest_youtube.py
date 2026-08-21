@@ -283,6 +283,16 @@ def process_entry(entry, *, channel_id: str, channel_name: str,
             print(f"    -> {err}")
         for err in media_errors:
             insert_error(r, video_url, "download", err)
+        # Fallback: write a title-only row so the weekly email still lists
+        # this video even when yt-dlp is fully blocked (e.g. GitHub Actions
+        # IP ban). mode="blocked" lets render_yt.py show a distinct badge
+        # instead of the normal sub/video/audio download links.
+        insert_yt_media_item(
+            video_url=video_url, video_id=video_id,
+            channel_id=channel_id, channel_name=channel_name,
+            feed_key=feed_key, title=entry.get("title", ""),
+            published_at=entry.get("published", r), mode="blocked",
+        )
     return found_something
 
 

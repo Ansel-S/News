@@ -76,19 +76,25 @@ def video_row(row) -> str:
     has_sub  = bool(row["content"])
     media_links = get_yt_media(row["video_id"])
 
+    is_blocked = (row["mode"] or "") == "blocked"
     badges = []
-    if has_sub:
+    if is_blocked:
+        badges.append(
+            f'<span style="font-size:10px;background:#f3f4f6;color:#6b7280;'
+            f'padding:1px 5px;border-radius:3px;font-family:{MONO}">blocked</span>'
+        )
+    elif has_sub:
         badges.append(
             f'<span style="font-size:10px;background:#dcfce7;color:#166534;'
             f'padding:1px 5px;border-radius:3px;font-family:{MONO}">sub</span>'
         )
-    if media_links.get("video"):
+    if not is_blocked and media_links.get("video"):
         badges.append(
             f'<a href="{_html.escape(media_links["video"])}" style="font-size:10px;'
             f'background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:3px;'
             f'font-family:{MONO};text-decoration:none">720p ↓</a>'
         )
-    if media_links.get("audio"):
+    if not is_blocked and media_links.get("audio"):
         badges.append(
             f'<a href="{_html.escape(media_links["audio"])}" style="font-size:10px;'
             f'background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;'
@@ -133,16 +139,36 @@ def main() -> None:
     # fetched_full is always 1 for yt_items (subtitle fetch is the "full
     # fetch" here — see db_utils.insert_yt), but filtering on it explicitly
     # keeps this consistent with how daily/extra decide zip eligibility.
-    zip_rows  = [r for r in sub_rows if r["fetched_full"]]
-    zip_count = export_full_articles_zip(zip_rows, OUT_ZIP) if zip_rows else 0
+    zip_rows     = [r for r in sub_rows if r["fetched_full"]]
+    zip_count    = export_full_articles_zip(zip_rows, OUT_ZIP) if zip_rows else 0
+    blocked_rows = [r for r in media_rows if (r["mode"] or "") == "blocked"]
+    n_blocked    = len(blocked_rows)
+
+    meta_parts = [f"{len(rows)} videos"]
+    if len(sub_rows):
+        meta_parts.append(f"{len(sub_rows)} with subtitles")
+    if n_blocked:
+        meta_parts.append(f"{n_blocked} blocked")
+    meta_str = " &middot; ".join(meta_parts)
 
     parts = [
         f'<p style="margin:0 0 32px;font-size:13px;color:{MUTED}">'
-        f'{len(rows)} videos ({len(sub_rows)} with subtitles) &middot; '
-        f'full subtitles ({zip_count} files) in attached '
-        f'<strong style="color:{TEXT}">yt_subtitles.zip</strong> &middot; '
-        f'720p/audio downloads linked inline where available'
-        f'</p>'
+        f'{meta_str}'
+        + (
+            f' &middot; full subtitles ({zip_count} files) in attached '
+            f'<strong style="color:{TEXT}">yt_subtitles.zip</strong>'
+            if zip_count else ""
+        )
+        + (
+            f' &middot; 720p/audio downloads linked inline where available'
+            if len(media_rows) - n_blocked else ""
+        )
+        + (
+            f' &middot; <span style="color:#6b7280">yt-dlp blocked this run'
+            f' — titles only for {n_blocked} video(s)</span>'
+            if n_blocked else ""
+        )
+        + f'</p>'
     ]
 
     for fk in sorted(groups, key=order):
@@ -155,19 +181,20 @@ def main() -> None:
         parts.append("</ul>")
 
     date_str = fmt_date()
+    subj_extra = f" · {n_blocked} blocked" if n_blocked else ""
     html_out = email_shell(
         title=f"YouTube · {date_str}",
-        subtitle=f"{len(rows)} videos ({len(sub_rows)} with subtitles)",
+        subtitle=meta_str.replace(" &middot; ", " · "),
         body="\n".join(parts),
         issue_label="YouTube Weekly",
     )
     OUT_HTML.write_text(html_out, encoding="utf-8")
-    OUT_SUBJ.write_text(f"Dewsletter YouTube · {date_str} · {len(rows)} videos")
+    OUT_SUBJ.write_text(f"Dewsletter YouTube · {date_str} · {len(rows)} videos{subj_extra}")
 
     for row in rows:
         mark_pushed("youtube", row["id"], ISSUE_TYPE, issue_id)
     print(f"render_yt: {len(rows)} videos ({len(sub_rows)} subtitle + "
-          f"{len(media_rows)} media-only) → {OUT_HTML.name}")
+          f"{len(media_rows) - n_blocked} media-only + {n_blocked} blocked) → {OUT_HTML.name}")
 
 
 if __name__ == "__main__":
