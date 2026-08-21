@@ -1,0 +1,18 @@
+name: Zen Weekly
+
+on:
+  schedule:
+    - cron: "0 12 * * 0"
+  workflow_dispatch:
+
+jobs:
+  call:
+    uses: ./.github/workflows/_send-issue.yml
+    with:
+      db: content
+      # No ingest_cmd — see dive_weekly.yml's comment; same reasoning.
+      render_cmd: python scripts/render/render_zen.py
+      out_name: out_zen
+      commit_paths: database/content.db
+      commit_label: zen weekly
+    secrets: inherit

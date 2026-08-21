@@ -1,0 +1,20 @@
+name: Dive Weekly
+
+on:
+  schedule:
+    - cron: "0 0 * * 6"
+  workflow_dispatch:
+
+jobs:
+  call:
+    uses: ./.github/workflows/_send-issue.yml
+    with:
+      db: content
+      # No ingest_cmd: content.db is shared with Daily/Extra/Zen/Research
+      # since Phase 5's db merge, and daily.yml's ingest run already covers
+      # it (see daily.yml's own comment). Render-only here.
+      render_cmd: python scripts/render/render_dive.py
+      out_name: out_dive
+      commit_paths: database/content.db
+      commit_label: dive weekly
+    secrets: inherit

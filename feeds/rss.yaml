@@ -1,0 +1,245 @@
+# feeds/rss.yaml
+# All RSS/Atom sources
+# display_mode: full | title_excerpt | title_only | repo_card | chart_only
+# db: core | dive | zen | paper | report
+# issue: daily | dive_weekly | zen_weekly | paper_weekly | report_monthly
+#
+# One organization, multiple RSS feeds you want all of (e.g. RAND publishes
+# separate feeds for Economy / Policy / Security): add one `source` entry per
+# feed, not one entry with multiple urls. Give each a distinguishing name
+# ("RAND - Economy", "RAND - Policy", ...) so they're identifiable in the
+# email and in the db. This also lets each feed have its own display_mode —
+# e.g. a monthly-report feed as `full` and a news/press-release feed as
+# `title_excerpt` — which a single shared-name entry couldn't express.
+#   - name: RAND - Commentary
+#     url: https://www.rand.org/pubs/commentary.xml
+#     display_mode: title_excerpt
+#   - name: RAND - Article
+#     url: https://www.rand.org/pubs/articles.xml
+#     display_mode: full
+
+feeds:
+
+  # ── Daily · Tech ────────────────────────────────────────────────────────────
+  - key: rss.daily.tech
+    db: core
+    issue: daily
+    sources:
+      - name: TLDR Tech
+        url: https://tldr.tech/api/rss/tech
+        display_mode: full
+        no_store: true
+      - name: TLDR Dev
+        url: https://tldr.tech/api/rss/dev
+        display_mode: full
+        no_store: true
+      - name: Ruanyf Weekly
+        url: https://feeds.feedburner.com/ruanyifeng
+        display_mode: full
+
+  # ── Daily · GitHub ──────────────────────────────────────────────────────────
+  - key: rss.daily.github
+    db: core
+    issue: daily
+    sources:
+      - name: GitHub Trending Weekly
+        url: https://rsshub.app/github/trending/weekly/any
+        display_mode: repo_card
+      - name: HelloGitHub
+        url: https://hellogithub.com/rss
+        display_mode: full
+
+  # ── Daily · Music ───────────────────────────────────────────────────────────
+  - key: rss.daily.music
+    db: core
+    issue: daily
+    sources:
+      - name: Billboard Hot 100
+        url: FILL_ME
+        display_mode: chart_only
+        no_store: true
+      - name: Bandcamp Daily
+        url: https://daily.bandcamp.com/feed
+        display_mode: title_excerpt
+        no_store: true
+
+  # ── Digest · Podcast ────────────────────────────────────────────────────────
+  - key: rss.digest.podcast
+    db: core
+    issue: daily
+    sources:
+      - name: The Daily NYT
+        url: https://feeds.simplecast.com/54nAGcIl
+        display_mode: title_excerpt
+
+  # ── Digest · AI ─────────────────────────────────────────────────────────────
+  - key: rss.digest.ai
+    db: core
+    issue: daily
+    sources:
+      - name: Last Week in AI
+        url: https://lastweekin.ai/feed
+        display_mode: title_excerpt
+
+  # ── Digest · Engineering ────────────────────────────────────────────────────
+  - key: rss.digest.engineering
+    db: core
+    issue: daily
+    sources:
+      - name: Stripe Engineering
+        url: https://stripe.com/blog/feed/rss
+        display_mode: title_excerpt
+
+  # ── Digest · Economics ──────────────────────────────────────────────────────
+  - key: rss.digest.economics
+    db: core
+    issue: daily
+    sources:
+      - name: Our World in Data
+        url: https://ourworldindata.org/atom.xml
+        display_mode: title_excerpt
+      - name: FRED Blog
+        url: https://fredblog.stlouisfed.org/feed/
+        display_mode: title_excerpt
+      - name: FED Notes
+        url: https://www.federalreserve.gov/feeds/feds_notes.xml
+        display_mode: title_excerpt
+
+  # ── Dive ────────────────────────────────────────────────────────────────────
+  - key: rss.dive
+    db: dive
+    issue: dive_weekly
+    sources:
+      - name: Noahpinion
+        url: https://www.noahpinion.blog/feed
+        display_mode: title_excerpt
+      - name: One Useful Thing
+        url: https://www.oneusefulthing.org/feed
+        display_mode: title_excerpt
+      - name: Wait But Why
+        url: https://waitbutwhy.com/feed
+        display_mode: title_excerpt
+      - name: The Marginalian
+        url: https://www.themarginalian.org/feed/
+        display_mode: title_excerpt
+      - name: Lenny's Newsletter
+        url: https://www.lennysnewsletter.com/feed
+        display_mode: title_excerpt
+
+  # ── Research · CS → paper.db ────────────────────────────────────────────────
+  - key: rss.research.cs
+    db: paper
+    issue: paper_weekly
+    sources:
+      - name: ACM Queue
+        url: https://queue.acm.org/rss/feeds/queuecontent.xml
+        display_mode: title_only
+      - name: Martin Fowler
+        url: https://martinfowler.com/feed.atom
+        display_mode: title_only
+      - name: Cloudflare Blog
+        url: https://blog.cloudflare.com/rss/
+        display_mode: title_only
+
+  # ── Research · Science → paper.db ──────────────────────────────────────────
+  - key: rss.research.science
+    db: paper
+    issue: paper_weekly
+    sources:
+      - name: Quanta Magazine
+        url: https://www.quantamagazine.org/feed/
+        display_mode: title_only
+
+  # ── Research · Economics → paper.db ────────────────────────────────────────
+  - key: rss.research.economics
+    db: paper
+    issue: paper_weekly
+    sources:
+      - name: AQR Research
+        url: FILL_ME
+        display_mode: title_only
+
+  # ── Daily · AI → paper.db ───────────────────────────────────────────────────
+  - key: rss.daily.ai
+    db: paper
+    issue: paper_weekly
+    sources:
+      - name: Anthropic Research
+        url: FILL_ME
+        display_mode: title_only
+      - name: Apple Machine Learning Research
+        url: https://machinelearning.apple.com/rss.xml
+        display_mode: title_only
+      - name: NIST AI
+        url: FILL_ME
+        display_mode: title_only
+
+  # ── Daily · Economics → paper.db ───────────────────────────────────────────
+  - key: rss.daily.economics
+    db: paper
+    issue: paper_weekly
+    sources:
+      - name: BIS Statistics
+        url: https://www.bis.org/doclist/all_statistics.rss
+        display_mode: title_only
+      - name: BIS Papers
+        url: https://www.bis.org/doclist/reshub_papers.rss
+        display_mode: title_only
+
+  # ── arXiv → paper.db (PDFs downloaded directly, abs -> pdf URL pattern) ────
+  # Split out from rss.report below: unlike report.db's thinktank sources,
+  # arXiv doesn't need HTML-scraping for a PDF link — its PDF URLs are
+  # predictable (arxiv.org/abs/{id} -> arxiv.org/pdf/{id}), so it gets its
+  # own ingest path (ingest_rss.py::process_paper_entry) and lands in
+  # paper.db instead of report.db.
+  - key: rss.paper.arxiv
+    db: paper
+    issue: paper_weekly
+    sources:
+      - name: Arxiv CS.AI
+        url: https://rss.arxiv.org/rss/cs.AI
+
+  # ── Report → report.db (PDFs stored as binary blobs) ───────────────────────
+  # Only RAND, Peterson Institute, and Epoch AI actually have RSS feeds.
+  # Brookings / AI Index / NBER / Institute for Progress / Carnegie
+  # Endowment have no RSS at all — they used to sit here as permanently
+  # unfillable FILL_ME placeholders (ingest_rss.py silently skips FILL_ME
+  # urls, so they were never doing anything). They're now scraped directly
+  # by scripts/ingest_scrapers.py instead, which runs automatically
+  # whenever report.db is a target — see ingest_rss.py::main().
+  - key: rss.report
+    db: report
+    issue: report_monthly
+    display_mode: title_only
+    sources:
+      - name: RAND
+        url: https://www.rand.org/pubs/new.xml
+      - name: RAND Commentary
+        url: https://www.rand.org/pubs/commentary.xml
+      - name: RAND Articles
+        url: https://www.rand.org/pubs/articles.xml
+      - name: Peterson Institute
+        url: https://www.piie.com/rss/update.xml
+      - name: Epoch AI
+        url: https://epochai.substack.com/feed
+
+  # ── Zen → zen.db ────────────────────────────────────────────────────────────
+  - key: rss.zen
+    db: zen
+    issue: zen_weekly
+    sources:
+      - name: sspai
+        url: https://sspai.com/feed
+        display_mode: title_excerpt
+      - name: ifanr
+        url: https://www.ifanr.com/feed
+        display_mode: title_excerpt
+      - name: Innei
+        url: https://innei.in/feed
+        display_mode: title_excerpt
+      - name: Bubbles Town
+        url: https://bubbles.town/weekly/feed
+        display_mode: full
+      - name: Today I Found Out
+        url: https://www.todayifoundout.com/index.php/feed/
+        display_mode: title_excerpt

@@ -1,0 +1,391 @@
+"""
+ingest_youtube.py — YouTube subtitle ingest
+Reads config/sources/youtube.yml (via config.py's yt_feeds()), fetches
+video lists via YouTube RSS feed, downloads subtitles with yt-dlp, stores
+in youtube.db.
+"""
+from __future__ import annotations
+
+
+import sys as _sys
+from pathlib import Path as _Path
+_SCRIPTS_DIR = _Path(__file__).resolve().parent.parent
+if str(_SCRIPTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_SCRIPTS_DIR))
+import os
+import re
+import subprocess
+import tempfile
+from pathlib import Path
+
+import feedparser
+import requests
+
+from config import yt_feeds
+from db.db_utils import (
+    run_id, yt_exists, mark_yt_seen, insert_yt, insert_yt_media_item,
+    insert_error as _err, now_iso,
+)
+from ingest.ingest_base import is_recent as _is_recent, run_parallel
+
+MAX_WORKERS   = int(os.getenv("YT_WORKERS", "3"))
+LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "8"))
+RETRY_SOURCE  = os.getenv("RETRY_ONLY_SOURCE")
+
+# Where low-res video/audio downloads land before being uploaded as GitHub
+# Release assets by the workflow. Each file must stay under GitHub's 2 GiB
+# per-asset limit (no total-size limit on a release) — see docs.github.com
+# /en/repositories/releasing-projects-on-github/about-releases
+MEDIA_OUT_DIR = Path(os.getenv("YT_MEDIA_DIR", "media_out"))
+
+# Target: smallest reasonable quality, still watchable/listenable.
+# vp09/av01 @ 720p (or below, whichever is available) video-only when we don't
+# need subtitles at all; audio-only (m4a/opus) when the video track is useless.
+VIDEO_FORMAT = "bestvideo[height<=720][vcodec^=vp09]/bestvideo[height<=720][vcodec^=av01]/bestvideo[height<=720]+bestaudio/best[height<=720]"
+AUDIO_FORMAT = "bestaudio[abr<=96]/bestaudio"
+
+VALID_MODES = {"subtitle", "video", "mixed", "audio"}
+
+
+def yt_feed_url(channel_id: str) -> str:
+    return f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+
+
+def is_recent(entry) -> bool:
+    return _is_recent(entry, lookback_days=LOOKBACK_DAYS)
+
+
+def pick_subtitle_file(tmp_dir: Path) -> Path | None:
+    """Find the best subtitle file yt-dlp wrote, preferring non-English vtt,
+    then non-English ass, then falling back to whatever English version
+    exists. We don't force --sub-format vtt anymore since some channels only
+    have .ass subtitles that yt-dlp can't always convert cleanly — better to
+    grab whatever format is actually available and clean it ourselves."""
+    candidates = list(tmp_dir.glob("*.vtt")) + list(tmp_dir.glob("*.ass"))
+    if not candidates:
+        return None
+
+    def is_english(f: Path) -> bool:
+        return bool(re.search(r"\.(en|en-orig|en-US|en-GB)[.-]", f.name)) or f.name.endswith((".en.vtt", ".en.ass"))
+
+    non_en = [f for f in candidates if not is_english(f)]
+    pool = non_en or candidates
+    # Prefer vtt over ass when both exist for the same language, since vtt is
+    # simpler to clean and usually higher fidelity for auto-generated subs.
+    vtt_pool = [f for f in pool if f.suffix == ".vtt"]
+    return vtt_pool[0] if vtt_pool else pool[0]
+
+
+def download_subtitle(video_url: str) -> tuple[str | None, str | None]:
+    """Returns (subtitle_text, error) — error holds yt-dlp's actual failure
+    reason (or 'no subtitle track available' if yt-dlp succeeded but
+    produced no file) instead of discarding it on every failure path, same
+    fix as download_media() below."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cmd = [
+            "yt-dlp", "--skip-download",
+            "--write-sub", "--write-auto-sub",
+            "--sub-langs", "all,-live_chat",
+            "--output", f"{tmp}/%(id)s",
+            video_url,
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        except subprocess.TimeoutExpired:
+            return None, "yt-dlp timed out after 120s (subtitle)"
+        if result.returncode != 0:
+            stderr_tail = (result.stderr or "").strip().splitlines()[-1] if result.stderr else "(no stderr)"
+            return None, f"yt-dlp exit {result.returncode} (subtitle): {stderr_tail}"
+        chosen = pick_subtitle_file(Path(tmp))
+        if not chosen:
+            return None, "yt-dlp exit 0 but no subtitle track available"
+        raw = chosen.read_text("utf-8", errors="ignore")
+        text = clean_ass(raw) if chosen.suffix == ".ass" else clean_vtt(raw)
+        return text, None
+
+
+def clean_ass(ass: str) -> str:
+    """Extract spoken text from an .ass subtitle file: keep only Dialogue
+    lines, drop timing/style/effect fields, strip {\\...} override tags and
+    line-break markers, dedupe repeated lines (common with karaoke-style
+    overlapping dialogue events)."""
+    seen: set[str] = set()
+    lines: list[str] = []
+    for raw_line in ass.splitlines():
+        if not raw_line.startswith("Dialogue:"):
+            continue
+        # Dialogue: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
+        # Text is the 10th comma-separated field, but may itself contain commas,
+        # so split with a limit.
+        fields = raw_line.split(",", 9)
+        if len(fields) < 10:
+            continue
+        text = fields[9]
+        text = re.sub(r"\{[^}]*\}", "", text)      # {\an8}, {\pos(...)}, etc.
+        text = text.replace("\\N", " ").replace("\\n", " ").strip()
+        if text and text not in seen:
+            seen.add(text)
+            lines.append(text)
+    return " ".join(lines)
+
+
+def clean_vtt(vtt: str) -> str:
+    seen: set[str] = set()
+    lines: list[str] = []
+    for block in re.split(r"\n\s*\n", vtt.strip()):
+        for raw in block.splitlines():
+            raw = raw.strip()
+            if (not raw or "-->" in raw or raw.startswith(("WEBVTT", "NOTE", "Kind:", "Language:"))
+                    or re.fullmatch(r"\d+", raw)):
+                continue
+            text = re.sub(r"<[^>]+>", "", raw).strip()
+            if text and text not in seen:
+                seen.add(text)
+                lines.append(text)
+    return " ".join(lines)
+
+
+def download_media(video_url: str, video_id: str, *, kind: str) -> tuple[Path | None, str | None]:
+    """Download a low-res video (vp09/av01, <=720p) or audio-only track.
+    `kind` is 'video' or 'audio' — used as a filename suffix so a channel that
+    wants both doesn't have one overwrite the other. Returns (path, error) —
+    path is None on failure, in which case error holds yt-dlp's actual
+    stderr/timeout reason instead of discarding it (a prior version returned
+    bare None on failure, which is why a channel could silently produce
+    zero usable output with no visible cause). Caller uploads the returned
+    path as a GitHub Release asset and deletes the local copy afterwards."""
+    MEDIA_OUT_DIR.mkdir(parents=True, exist_ok=True)
+    out_tmpl = str(MEDIA_OUT_DIR / f"{video_id}.{kind}.%(ext)s")
+    fmt = AUDIO_FORMAT if kind == "audio" else VIDEO_FORMAT
+    cmd = [
+        "yt-dlp", "-f", fmt,
+        "--no-playlist",
+        "--output", out_tmpl,
+        video_url,
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+    except subprocess.TimeoutExpired:
+        return None, f"yt-dlp timed out after 1800s ({kind})"
+    if result.returncode != 0:
+        stderr_tail = (result.stderr or "").strip().splitlines()[-1] if result.stderr else "(no stderr)"
+        return None, f"yt-dlp exit {result.returncode} ({kind}): {stderr_tail}"
+    matches = list(MEDIA_OUT_DIR.glob(f"{video_id}.{kind}.*"))
+    if not matches:
+        return None, f"yt-dlp exit 0 but no output file matched ({kind})"
+    return matches[0], None
+
+
+def insert_error(r: str, source_id: str, stage: str, msg: str) -> None:
+    _err("youtube", run_id=r, source_id=source_id,
+         stage=stage, error_type="unknown", message=msg)
+
+
+def process_entry(entry, *, channel_id: str, channel_name: str,
+                  feed_key: str, modes: list[str], r: str) -> bool:
+    """Returns True if this video produced something usable (subtitle text
+    or a downloaded media file), False if it was skipped (dedup/recency) or
+    genuinely produced nothing — the caller uses this to distinguish a
+    real per-video failure from a normal skip, instead of both looking like
+    silent success."""
+    video_url = entry.get("link", "")
+    if not video_url:
+        return False
+    if RETRY_SOURCE and channel_id != RETRY_SOURCE:
+        return False
+    if not is_recent(entry):
+        return False
+    if yt_exists(video_url):
+        return False
+
+    video_id = entry.get("yt_videoid") or ""
+    if not video_id:
+        m = re.search(r"v=([^&]+)", video_url)
+        video_id = m.group(1) if m else ""
+
+    subtitle: str | None = None
+    media_paths: dict[str, Path] = {}  # kind -> path, e.g. {"video": ..., "audio": ...}
+    media_errors: list[str] = []
+
+    want_subtitle = "subtitle" in modes or "mixed" in modes
+    want_video    = "video" in modes
+    want_audio    = "audio" in modes
+
+    if want_subtitle:
+        subtitle, err = download_subtitle(video_url)  # already cleaned (vtt or ass)
+        if err and not subtitle:
+            media_errors.append(err)
+
+    if want_video:
+        p, err = download_media(video_url, video_id, kind="video")
+        if p:
+            media_paths["video"] = p
+        elif err:
+            media_errors.append(err)
+    if want_audio:
+        p, err = download_media(video_url, video_id, kind="audio")
+        if p:
+            media_paths["audio"] = p
+        elif err:
+            media_errors.append(err)
+
+    if "mixed" in modes and not subtitle and not media_paths:
+        # Subtitles came back empty and no explicit video/audio was requested.
+        # Fallback order mirrors the "listening > watching" preference:
+        # try audio first, and only fall back to a low-res video if even
+        # that isn't available (e.g. a members-only or otherwise restricted
+        # audio stream).
+        p, err = download_media(video_url, video_id, kind="audio")
+        if p:
+            media_paths["audio"] = p
+        else:
+            if err:
+                media_errors.append(err)
+            p, err = download_media(video_url, video_id, kind="video")
+            if p:
+                media_paths["video"] = p
+            elif err:
+                media_errors.append(err)
+
+    # Every processed video is marked seen for dedup, regardless of whether
+    # it produced subtitles, video, or audio — this is what stops pure
+    # video/audio-mode channels from being re-downloaded on every run even
+    # though they never get a yt_items row.
+    mark_yt_seen(video_url, video_id)
+
+    insert_yt(
+        video_url=video_url, video_id=video_id,
+        channel_id=channel_id, channel_name=channel_name,
+        feed_key=feed_key, title=entry.get("title", ""),
+        subtitle=subtitle, published_at=entry.get("published", r),
+        mode=",".join(modes),
+        # insert_yt is a no-op if subtitle is empty/None — only videos that
+        # actually produced subtitle text get a yt_items row.
+    )
+    if not subtitle and media_paths:
+        # No subtitle text, but this video/audio-only channel still needs a
+        # title + download-link row in the weekly email — see yt_media_items.
+        insert_yt_media_item(
+            video_url=video_url, video_id=video_id,
+            channel_id=channel_id, channel_name=channel_name,
+            feed_key=feed_key, title=entry.get("title", ""),
+            published_at=entry.get("published", r), mode=",".join(modes),
+        )
+    status_bits = []
+    if subtitle:
+        status_bits.append("subtitle")
+    status_bits += list(media_paths.keys())
+    found_something = bool(status_bits)
+    status = "+".join(status_bits) if found_something else "NOTHING FOUND"
+    print(f"  [{channel_name}] {entry.get('title', '')[:55]} — {status} (modes={modes})")
+    if not found_something and media_errors:
+        for err in media_errors:
+            print(f"    -> {err}")
+        for err in media_errors:
+            insert_error(r, video_url, "download", err)
+    return found_something
+
+
+def fetch_channel(channel_id: str, channel_name: str, feed_key: str, modes: list[str], r: str) -> str:
+    """Returns one of: "ok" (>=1 entry produced subtitle text or a
+    downloaded media file), "no_media" (feed parsed and had entries, but
+    every entry produced nothing usable — e.g. yt-dlp failing on all of
+    them), "empty" (0 entries, valid feed), "blocked" (response wasn't a
+    parseable feed at all — the likely signature of YouTube blocking a
+    datacenter IP), "fetch_error" (network/HTTP failure)."""
+    url = yt_feed_url(channel_id)
+    try:
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        feed = feedparser.parse(resp.content)
+        if not feed.entries:
+            # feedparser's bozo flag does NOT reliably catch this — an
+            # HTML block/consent page parses without error and just
+            # yields 0 entries, same as a channel with genuinely no new
+            # videos. The one thing a real Atom feed always has that an
+            # HTML page won't is a feed-level id/title. Checking for that
+            # is what actually distinguishes "blocked" from "quiet
+            # channel" here.
+            looks_like_html = not feed.get("feed", {}).get("title")
+            if looks_like_html:
+                snippet = resp.text[:120].replace("\n", " ")
+                print(f"  [{channel_name}] response wasn't a real feed — {snippet!r}")
+                return "blocked"
+            print(f"  [{channel_name}] 0 entries in feed (no new videos)")
+            return "empty"
+        any_success = False
+        any_attempted = False
+        for entry in feed.entries:
+            try:
+                any_attempted = True
+                if process_entry(entry, channel_id=channel_id, channel_name=channel_name,
+                                 feed_key=feed_key, modes=modes, r=r):
+                    any_success = True
+            except Exception as ex:
+                insert_error(r, entry.get("link", url), "parse", str(ex))
+                print(f"  [{channel_name}] entry error: {ex}")
+        if any_success:
+            return "ok"
+        if any_attempted:
+            return "no_media"
+        return "empty"  # every entry was skipped (dedup/recency), not a failure
+    except Exception as ex:
+        insert_error(r, url, "fetch", str(ex))
+        print(f"  [{channel_name}] fetch failed: {ex}")
+        return "fetch_error"
+
+
+def _normalize_modes(raw) -> list[str]:
+    """Accept either the old single-string form or the new list form.
+    Unknown/FILL_ME entries fall back to ['mixed'] (today's default behavior)."""
+    if raw is None:
+        return ["mixed"]
+    if isinstance(raw, str):
+        raw = [raw]
+    modes = [m for m in raw if m in VALID_MODES]
+    return modes or ["mixed"]
+
+
+def main() -> None:
+    r     = run_id()
+    only  = os.getenv("YT_ONLY_CHANNEL")  # match against channel_id or name — see test_yt.sh
+    tasks = []
+    for group in yt_feeds():
+        feed_key = group["key"]
+        for src in group.get("sources", []):
+            cid = src.get("channel_id", "")
+            if not cid or cid == "FILL_ME":
+                continue
+            if only and only not in (cid, src["name"]):
+                continue
+            modes = _normalize_modes(src.get("mode"))
+            tasks.append(dict(channel_id=cid, channel_name=src["name"],
+                              feed_key=feed_key, modes=modes, r=r))
+
+    if only and not tasks:
+        print(f"ingest_youtube: YT_ONLY_CHANNEL={only!r} matched no configured channel "
+              f"(checked both channel_id and name) — nothing to do")
+        return
+
+    print(f"ingest_youtube: {len(tasks)} channels, {MAX_WORKERS} workers")
+    results = run_parallel(tasks, fetch_channel, max_workers=MAX_WORKERS,
+                           label_key="channel_name", collect_results=True)
+
+    from collections import Counter
+    tally = Counter(results)
+    print(f"ingest_youtube: done — ok={tally['ok']} no_media={tally['no_media']} "
+          f"empty={tally['empty']} blocked={tally['blocked']} fetch_error={tally['fetch_error']}")
+    if tally["blocked"] > len(tasks) // 2:
+        print("ingest_youtube: WARNING — most channels returned an unparseable "
+              "response, not just 'no new videos'. This is the signature of "
+              "YouTube blocking this machine's IP (common for datacenter/CI "
+              "IPs, including GitHub Codespaces) rather than a code bug.")
+    if tally["no_media"] > len(tasks) // 2:
+        print("ingest_youtube: WARNING — most channels had new videos but "
+              "produced no usable subtitle/video/audio. Check the per-video "
+              "'-> ...' error lines above — likely yt-dlp being blocked or "
+              "failing on every download, not a code bug.")
+
+
+if __name__ == "__main__":
+    main()

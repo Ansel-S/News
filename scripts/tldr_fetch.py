@@ -21,7 +21,7 @@ from pathlib import Path
 import feedparser
 import requests
 
-from render_base import strip_sponsor_and_cta, excerpt
+from render.render_base import strip_sponsor_and_cta, excerpt
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; Dewsletter/1.0)"}
 

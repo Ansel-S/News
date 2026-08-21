@@ -1,0 +1,133 @@
+name: Daily
+
+on:
+  schedule:
+    - cron: "0 20 * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Init Git LFS
+        run: git lfs install
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install feedparser requests trafilatura pyyaml
+
+      - name: Init databases
+        run: python scripts/db/db_init.py content hn
+
+      - name: Ingest RSS (content.db)
+        # Since Phase 5's db merge, content.db holds everything that used
+        # to be split across core.db/dive.db/zen.db/paper.db — so this one
+        # daily ingest run now covers Dive/Zen/Research-topic sources too,
+        # not just Daily/Extra's. dive_weekly/zen_weekly/research_weekly no
+        # longer run their own ingest step (see their workflow files) —
+        # they rely on this having already populated content.db by the
+        # time they render. Deliberate side effect, not an accident: those
+        # sources move from "fetched once a week, right before render" to
+        # "fetched daily" — fresher content, and full-text-fetch load
+        # spreads across every day instead of bursting on render day.
+        run: python scripts/ingest/ingest_rss.py content
+
+      - name: Ingest HackerNews (hn.db)
+        run: python scripts/ingest/ingest_hn.py
+
+      - name: Render daily HTML
+        run: python scripts/render/render_daily.py
+
+      - name: Ensure daily zip attachment exists
+        run: |
+          if [ ! -f out_daily.zip ]; then
+            echo "no full-text articles today" > _placeholder.txt
+            zip out_daily.zip _placeholder.txt
+            rm _placeholder.txt
+          fi
+
+      - name: Read daily subject
+        id: subject
+        run: |
+          if [ -f out_daily.html ] && [ -f out_daily_subject.txt ]; then
+            echo "send=true" >> "$GITHUB_OUTPUT"
+            echo "value=$(cat out_daily_subject.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "send=false" >> "$GITHUB_OUTPUT"
+            echo "nothing to send today — skipping email"
+          fi
+
+      - name: Send daily email
+        if: steps.subject.outputs.send == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          to: ${{ secrets.TO_EMAIL }}
+          from: Dewsletter <${{ secrets.SMTP_USER }}>
+          subject: ${{ steps.subject.outputs.value }}
+          html_body: file://out_daily.html
+          attachments: out_daily.zip
+
+      - name: Render Extra HTML (TLDR / Ruanyf / HelloGitHub)
+        run: python scripts/render/render_extra.py
+
+      - name: Check if Extra has content
+        id: extra_check
+        run: |
+          if [ -f out_extra.html ]; then
+            echo "has_content=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_content=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ensure extra zip attachment exists
+        if: steps.extra_check.outputs.has_content == 'true'
+        run: |
+          if [ ! -f out_extra.zip ]; then
+            echo "no full-text articles today" > _placeholder.txt
+            zip out_extra.zip _placeholder.txt
+            rm _placeholder.txt
+          fi
+
+      - name: Read extra subject
+        if: steps.extra_check.outputs.has_content == 'true'
+        id: extra_subject
+        run: echo "value=$(cat out_extra_subject.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Send extra email
+        if: steps.extra_check.outputs.has_content == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          to: ${{ secrets.TO_EMAIL }}
+          from: Dewsletter <${{ secrets.SMTP_USER }}>
+          subject: ${{ steps.extra_subject.outputs.value }}
+          html_body: file://out_extra.html
+          attachments: out_extra.zip
+
+      - name: Commit databases (LFS)
+        continue-on-error: true
+        run: |
+          git config user.name  github-actions
+          git config user.email github-actions@github.com
+          git add database/content.db database/hn.db
+          git commit -m "daily · $(date -u +'%Y-%m-%d')" || true
+          git push || true

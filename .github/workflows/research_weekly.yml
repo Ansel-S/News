@@ -1,0 +1,91 @@
+name: Research Weekly
+
+# Replaces the old Paper Weekly + Report Monthly (merged per DESIGN.md
+# §4.4, resolved in Phase 6). Not a candidate for the _send-issue.yml
+# reusable workflow, since this issue genuinely spans two databases:
+# content.db's arXiv/paper-topic rows (already ingested daily via
+# daily.yml — see its own comment) and report.db's thinktank reports
+# (ingested here, since report.db isn't part of the Phase 5 merge and has
+# no other workflow feeding it).
+
+on:
+  schedule:
+    - cron: "0 0 * * 5"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Init Git LFS
+        run: git lfs install
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install feedparser requests trafilatura pyyaml
+
+      - name: Init databases
+        run: python scripts/db/db_init.py content report
+
+      - name: Ingest RSS + scraped sources, download PDFs (report.db)
+        # content.db's papers were already ingested by daily.yml — this
+        # only needs to cover report.db, which nothing else touches.
+        run: python scripts/ingest/ingest_rss.py report
+
+      - name: Render HTML + build research.zip
+        run: python scripts/render/render_research.py
+
+      - name: Read subject
+        id: subject
+        run: |
+          if [ -f out_research.html ] && [ -f out_research_subject.txt ]; then
+            echo "send=true" >> "$GITHUB_OUTPUT"
+            echo "value=$(cat out_research_subject.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "send=false" >> "$GITHUB_OUTPUT"
+            echo "nothing to send this week — skipping email"
+          fi
+
+      - name: Build attachment list
+        if: steps.subject.outputs.send == 'true'
+        id: attachments
+        run: |
+          if [ -f research.zip ]; then
+            echo "value=research.zip" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Send email
+        if: steps.subject.outputs.send == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          to: ${{ secrets.TO_EMAIL }}
+          from: Dewsletter <${{ secrets.SMTP_USER }}>
+          subject: ${{ steps.subject.outputs.value }}
+          html_body: file://out_research.html
+          attachments: ${{ steps.attachments.outputs.value }}
+
+      - name: Commit databases (LFS)
+        continue-on-error: true
+        run: |
+          git config user.name  github-actions
+          git config user.email github-actions@github.com
+          git add database/content.db database/report.db
+          git commit -m "research weekly · $(date -u +'%Y-%m-%d')" || true
+          git push || true

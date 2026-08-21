@@ -7,4 +7,5 @@ __pycache__/
 out_*.html
 out_*.txt
 out_*.json
-out_report_pdfs/
+out_*.zip
+research.zip
