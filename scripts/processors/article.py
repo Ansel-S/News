@@ -2,7 +2,7 @@
 processors/article.py — Turns a raw feedparser entry into a stored Item
 for every source type EXCEPT report.db (processors/report.py) and paper.db
 arXiv entries (processors/paper.py). Handles content.db's non-arXiv
-sources, and Billboard's chart_only special case.
+sources.
 
 Every entry attempts a full-text fetch unless its extract_mode is "skip"
 — extract_mode and email_mode are independent: email_mode only controls
@@ -12,10 +12,10 @@ try the same fetch_text() full-text extraction when extract_mode is
 fetch actually succeeded, independent of email_mode, so renderers can
 decide zip-attachment eligibility without re-fetching or re-deriving it.
 
-extract_mode="skip" (Billboard's chart, GitHub-listing sources like
-GitHub Trending/HelloGitHub-if-configured-that-way) are exceptions: never
-eligible for full-text fetch or the zip attachment, since a chart
-snapshot or a repo listing has nothing worth full-text-extracting.
+extract_mode="skip" (GitHub-listing sources like GitHub Trending/
+HelloGitHub-if-configured-that-way) is an exception: never eligible for
+full-text fetch or the zip attachment, since a repo listing has nothing
+worth full-text-extracting.
 """
 from __future__ import annotations
 import os

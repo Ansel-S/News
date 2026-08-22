@@ -1,6 +1,9 @@
 """
 render_daily.py — Daily digest renderer
-Section order: GitHub → Digest → HN → Billboard/Bandcamp
+Section order: GitHub → Digest → HN → Bandcamp
+
+Billboard Hot 100 is not part of Daily — it's a standalone monthly send,
+see scripts/render/render_billboard.py.
 
 TLDR / Ruanyf Weekly / HelloGitHub are rendered as a separate "Dewsletter
 Extra" email by render_extra.py, not folded in here — routing is handled
@@ -17,10 +20,9 @@ still displays normally, it's just not in the zip.
 Rows are grouped by their own stored feed_key (the source's `section`
 from config, or the source_key itself for sources with no shared
 section) — no separate topic lookup needed; each row already carries the
-grouping label it was ingested with. The two sources whose extract_mode
-is "skip" but need bespoke HTML (GitHub Trending's repo_card, Billboard's
-chart table) are distinguished by config's `render_style` field, looked
-up per source_key — not by string-matching feed_key/source_key.
+grouping label it was ingested with. GitHub Trending's extract_mode is
+"skip" but needs bespoke HTML (repo_card), distinguished by config's
+`render_style` field, looked up per source_key.
 """
 from __future__ import annotations
 

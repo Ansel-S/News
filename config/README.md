@@ -14,9 +14,11 @@ Phases 1–6 (+ scaffolding retirement) of the architecture redesign (see
   ids each issue includes.
 - `storage.yml` — which physical db/table a source's items land in.
   Needed because db assignment is a storage/schema-shape concern that
-  topic can't safely imply — Billboard/Bandcamp are `culture.music` but
-  live in `content`, not some hypothetical separate "culture" db. Always
-  the ground truth for `db`; never re-derived from topic.
+  topic can't safely imply — Bandcamp is `culture.music` but
+  lives in `content`, not some hypothetical separate "culture" db. Always
+  the ground truth for `db`; never re-derived from topic. (Billboard Hot
+  100 is no longer part of this pipeline at all — see "Billboard Hot 100"
+  below.)
 - `feed_keys.yml` — source id → `feed_key` grouping/display label.
   Started life as `_phase1_legacy_keys.yml`, Phase-1 scaffolding meant to
   be deleted — turned out `render_research.py` has a real, ongoing need
@@ -122,6 +124,21 @@ both into a single `research.zip`.
 Report ingestion moved from `report_monthly.yml`'s monthly cadence to
 `research_weekly.yml`'s weekly one — a deliberate side effect (thinktank
 reports now arrive faster), not an accident of the merge.
+
+## Billboard Hot 100
+
+Not part of this config layer at all. `config/sources/rss.yml` used to
+carry a `billboard-hot-100` entry with `url: FILL_ME` (billboard.com has
+no chart RSS feed) — `ingest_rss.py` silently skipped it forever, and a
+regex-based HTML scraper in `collectors/scraper.py` was the standing,
+never-actually-wired attempt to work around that.
+
+Both are gone. Billboard Hot 100 is now a standalone monthly send —
+`scripts/render/render_billboard.py` + `.github/workflows/
+billboard_monthly.yml` — using the Parse.bot billboard.com scraper API
+(`PARSE_API_KEY` secret). It fetches live and sends rank/title/artist
+only; nothing is persisted to any database, so it needed no `db`/`topic`/
+`storage` entry here in the first place.
 
 ## Why db/issue are copied instead of derived from topic
 

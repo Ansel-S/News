@@ -8,7 +8,6 @@ Usage:
 Reads config.rss_feeds(), and for each source decides which collector to
 fetch raw entries with and which processor to hand them to:
 
-  extract_mode == "skip" and db == billboard's -> collectors.scraper.scrape_billboard()
   db == "report"                                -> collectors.rss + processors.report
   source has a `pdf` field (e.g. pdf: arxiv)    -> collectors.rss + processors.paper
   everything else                                -> collectors.rss + processors.article
@@ -23,6 +22,10 @@ report.db also pulls from sources with no RSS feed at all (Brookings, AI
 Index, etc) via collectors.scraper.ingest_report_scrapers() — runs
 automatically whenever report.db is a target, no separate workflow step
 needed.
+
+Billboard Hot 100 is NOT handled here — it's a standalone monthly send
+(scripts/render/render_billboard.py, via the Parse.bot scraper API),
+not part of content.db or the Daily digest. See that file's docstring.
 """
 from __future__ import annotations
 
@@ -34,14 +37,13 @@ if str(_SCRIPTS_DIR) not in _sys.path:
     _sys.path.insert(0, str(_SCRIPTS_DIR))
 import os
 import sys
-from datetime import datetime, UTC
 
 from config import rss_feeds
-from db.db_utils import run_id, now_iso, item_exists, insert_item, insert_error
+from db.db_utils import run_id, insert_error
 from ingest.ingest_base import run_parallel
 
 import collectors.rss as rss_collector
-from collectors.scraper import scrape_billboard, ingest_report_scrapers
+from collectors.scraper import ingest_report_scrapers
 from processors.article import process_entry
 from processors.paper import process_paper_entry
 from processors.report import process_report_entry
@@ -52,28 +54,6 @@ MAX_WORKERS = int(os.getenv("RSS_WORKERS", "8"))
 def fetch_feed(feed_url: str, *, db: str, feed_key: str, source_name: str,
                extract_mode: str, email_mode: str, r: str,
                source_key: str | None = None, pdf: str | None = None) -> None:
-
-    # Billboard special case — the only chart-scrape source today.
-    # Identified by source_key rather than a mode string, since
-    # extract_mode="skip" alone doesn't distinguish "chart snapshot,
-    # needs scrape_billboard()" from "repo listing, needs no fetch at all"
-    # (GitHub Trending) — those two skip-extraction sources need genuinely
-    # different handling, not just "skip".
-    if source_key == "billboard-hot-100":
-        chart_id = feed_url + "#chart"
-        if not item_exists(db, chart_id):
-            content = scrape_billboard()
-            insert_item(
-                db,
-                source_id=chart_id, feed_key=feed_key, source_name=source_name,
-                email_mode=email_mode, extract_mode=extract_mode,
-                title=f"Billboard Hot 100 · {datetime.now(UTC).strftime('%Y-%m-%d')}",
-                content=content, created_at=now_iso(),
-                extra_columns={"fetched_full": 0},
-                source_key=source_key,
-            )
-        return
-
     try:
         entries = rss_collector.fetch_entries(feed_url)
 

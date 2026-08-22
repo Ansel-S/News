@@ -1,9 +1,14 @@
 """
-collectors/scraper.py — Non-feed sources: Billboard (scraped directly,
-never had RSS) and report.db sources with no RSS/Atom feed at all (AI
-Index, Institute for Progress, Brookings, NBER, Carnegie Endowment —
+collectors/scraper.py — report.db sources with no RSS/Atom feed at all
+(AI Index, Institute for Progress, Brookings, NBER, Carnegie Endowment —
 unlike RAND/PIIE/Epoch AI, which do have RSS and go through the normal
 collectors/rss.py path).
+
+Billboard used to live here too (regex-scraped HTML, never wired to a
+real URL — config/sources/rss.yml's entry was always `url: FILL_ME`).
+It's been replaced by scripts/render/render_billboard.py, a standalone
+monthly send using the Parse.bot billboard.com scraper API instead of a
+brittle in-repo regex scrape — see that file's docstring.
 
 Correction to the original plan: Epoch AI turns out to publish on Substack
 (epochai.substack.com), and every Substack exposes a standard RSS feed at
@@ -29,11 +34,6 @@ ingest_report_scrapers() skips them with a clear error entry in report.db's
 errors table rather than silently doing nothing or shipping a scraper
 likely to break on the first real run.
 
-Moved out of ingest_scrapers.py + ingest_rss.py's scrape_billboard()
-verbatim (Phase 2 of the architecture redesign, see /DESIGN.md) — behavior
-is unchanged, only the file (and module name) changed. ingest_scrapers.py
-no longer exists; import from here instead.
-
 Usage (called automatically from ingest_rss.py::main() when report.db is a
 target — no separate workflow step needed):
   from collectors.scraper import ingest_report_scrapers
@@ -49,35 +49,6 @@ import requests
 import trafilatura
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; Dewsletter/1.0)"}
-
-
-# ── Billboard ────────────────────────────────────────────────────────────
-
-def scrape_billboard() -> str:
-    url = "https://www.billboard.com/charts/hot-100/"
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=30)
-        r.raise_for_status()
-    except Exception as e:
-        return f"Billboard fetch failed: {e}"
-
-    html = r.text
-    entries = re.findall(
-        r'<h3[^>]+id="[^"]*"[^>]*class="[^"]*c-title[^"]*"[^>]*>\s*(.*?)\s*</h3>.*?'
-        r'<span[^>]+class="[^"]*c-label[^"]*a-no-trucate[^"]*"[^>]*>\s*(.*?)\s*</span>',
-        html, re.DOTALL
-    )
-
-    if not entries:
-        text = trafilatura.extract(html)
-        return text or "Billboard parse failed"
-
-    lines = ["| Rank | Title | Artist |", "|------|-------|--------|"]
-    for i, (song, artist) in enumerate(entries[:20], 1):
-        song   = re.sub(r"<[^>]+>", "", song).strip()
-        artist = re.sub(r"<[^>]+>", "", artist).strip()
-        lines.append(f"| {i} | {song} | {artist} |")
-    return "\n".join(lines)
 
 
 def _fake_entry(*, title: str, link: str, published: str | None = None,

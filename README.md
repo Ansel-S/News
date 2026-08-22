@@ -15,12 +15,13 @@ The sections below describe the **current, working state**.
 
 | Issue | Schedule (BJT) | Content |
 |-------|---------------|---------|
-| **Daily** | Every day 04:00 | GitHub · Digest · HN (score > 350) · Billboard chart — full-text articles attached as `out_daily.zip` |
+| **Daily** | Every day 04:00 | GitHub · Digest · HN (score > 350) — full-text articles attached as `out_daily.zip` |
 | **Dewsletter Extra** | Same run as Daily | TLDR · Ruanyf Weekly · HelloGitHub — full-text attached as `out_extra.zip` |
 | **Dive Weekly** | Saturday 08:00 | Long-form full text: Noahpinion, Wait But Why, The Marginalian, etc. |
 | **Zen Weekly** | Sunday 20:00 | sspai, Innei, Bubbles Town, Today I Found Out |
 | **Research Weekly** | Friday 08:00 | AI/CS/science/economics papers + arXiv + RAND/Peterson Institute/Epoch AI/Brookings/AI Index/NBER/IFP/Carnegie thinktank reports — title list + PDFs attached as `research.zip` |
 | **YouTube Weekly** | Wednesday 08:00 | All channels — title list + subtitle status + `out_yt.zip` (subtitle text) + inline 720p/audio download links |
+| **Billboard Monthly** | 1st of month | Billboard Hot 100 — rank, title, artist only, via the Parse.bot scraper API |
 
 Research Weekly replaces the old separate Paper Weekly (Friday) + Report
 Monthly (1st of month) — merged into one issue and one schedule (Friday),
@@ -170,11 +171,33 @@ all — see "Report scrapers" above.
 | `title_excerpt` | Digest, Bandcamp, sspai | Title + first ~180 chars + link | Yes |
 | `title_only` | Papers, Reports | Title + source + link | Yes (most abstracts still just store the RSS summary since most sources have no full-article page to fetch) |
 | `repo_card` | GitHub Trending, HelloGitHub | Repo name + one-line description | No — never fetched, never zip-eligible |
-| `chart_only` | Billboard | Rank table (scraped from billboard.com) | No — not an article |
 
 Full-text fetch success/failure is independent of `display_mode` (see
 `fetched_full` above) — `display_mode` only controls how an item renders in
 the email body.
+
+Billboard Hot 100 doesn't use this table at all — it's a standalone
+monthly send (see below), not part of `content.db` or any issue's
+`display_mode` logic.
+
+---
+
+## Billboard Hot 100
+
+Standalone, not part of the RSS/`content.db` pipeline above. `config/
+sources/rss.yml` used to carry a `billboard-hot-100` entry with `url:
+FILL_ME` (billboard.com has no chart RSS feed), which `ingest_rss.py`
+silently skipped forever, backed by a regex-based HTML scraper in
+`collectors/scraper.py` that was never actually reachable. Both are gone.
+
+`scripts/render/render_billboard.py` fetches the Hot 100 live from the
+Parse.bot billboard.com scraper API and sends rank/title/artist only —
+nothing is persisted to any database, so there's nothing to dedup across
+a monthly cadence. `.github/workflows/billboard_monthly.yml` runs it on
+the 1st of each month; skips the send if the fetch fails, same
+"nothing to send" convention as every other issue.
+
+Requires the `PARSE_API_KEY` GitHub repository secret (see Setup below).
 
 ---
 
@@ -186,6 +209,7 @@ the email body.
    - `SMTP_PASS` — Gmail App Password
    - `TO_EMAIL` — recipient address
    - `IMAP_HOST` — only needed for the Email Download workflow (defaults to `imap.gmail.com`)
+   - `PARSE_API_KEY` — only needed for the Billboard Monthly workflow (Parse.bot API key, see parse.bot/settings)
 3. Enable Git LFS on your repo: `git lfs install`
 4. If migrating an existing repo through the db merge: run
    `python migrations/migrate_content_db.py` once (see its own docstring) before the
@@ -257,6 +281,7 @@ dewsletter/
 │   ├── render_zen.py
 │   ├── render_research.py       — Paper Weekly + Report Monthly, merged
 │   ├── render_yt.py
+│   ├── render_billboard.py      — standalone Billboard Hot 100, no db, no ingest step
 │   ├── release_utils.py         — shared GitHub Release upload helpers
 │   ├── upload_yt_release.py     — uploads video/audio to Release; the ONLY thing that ever writes there
 │   └── email_download.py        — mailbox-triggered download-to-Release
@@ -275,6 +300,7 @@ dewsletter/
     ├── zen_weekly.yml            — render-only, same reasoning
     ├── research_weekly.yml       — spans content.db + report.db; its own ingest for report.db
     ├── yt_weekly.yml
+    ├── billboard_monthly.yml     — standalone, no db, PARSE_API_KEY secret required
     └── email_download.yml        — runs every 3 days, not on the issue schedule above
 ```
 
