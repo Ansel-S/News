@@ -1,0 +1,54 @@
+name: Billboard Monthly
+
+# Standalone — not part of Daily/content.db. Fetches live via the
+# Parse.bot billboard.com scraper API (PARSE_API_KEY secret) and sends
+# rank/title/artist only. See scripts/render/render_billboard.py.
+
+on:
+  schedule:
+    - cron: "0 0 1 * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Render
+        env:
+          PARSE_API_KEY: ${{ secrets.PARSE_API_KEY }}
+        run: python scripts/render/render_billboard.py
+
+      - name: Read subject
+        id: subject
+        run: |
+          if [ -f "out_billboard.html" ] && [ -f "out_billboard_subject.txt" ]; then
+            echo "send=true" >> "$GITHUB_OUTPUT"
+            echo "value=$(cat out_billboard_subject.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "send=false" >> "$GITHUB_OUTPUT"
+            echo "nothing to send — skipping email"
+          fi
+
+      - name: Send email
+        if: steps.subject.outputs.send == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          to: ${{ secrets.TO_EMAIL }}
+          from: Dewsletter <${{ secrets.SMTP_USER }}>
+          subject: ${{ steps.subject.outputs.value }}
+          html_body: file://out_billboard.html
