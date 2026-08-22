@@ -7,6 +7,8 @@ on:
 
 jobs:
   call:
+    permissions:
+      contents: write
     uses: ./.github/workflows/_send-issue.yml
     with:
       db: content
